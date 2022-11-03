@@ -15,6 +15,7 @@ I picked colors for the following states:
 - green = up to date
 
 ## How to configure
+Modify the template project or add multiple ones. See https://github.com/rphii/Rlib where I created a library and used it to link with examples.
 ### Types of projects (`Prj::type`)
 - `BUILD_APP` builds an executable
 - `BUILD_STATIC` builds a static library
