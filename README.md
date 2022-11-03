@@ -16,6 +16,7 @@ I picked colors for the following states:
 - cyan = compiling
 - yellow = linking
 - green = up to date
+- magenta = cleaning
 
 ## How to configure
 Modify the template project or add multiple ones. See https://github.com/rphii/Rlib where I created a library and used it to link with examples.
