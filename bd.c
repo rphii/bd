@@ -35,6 +35,7 @@ SOFTWARE. */
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
     // define something for Windows (32-bit and 64-bit, this part is common)
     #define OS_STR "Windows"
+    #define OS_DEF "OS_WIN"
     #define OS_WIN
     #define SLASH_STR   "\\"
     #define SLASH_CH    '\\'
@@ -55,10 +56,12 @@ SOFTWARE. */
 #if defined(OS_WIN)
 #elif defined(__CYGWIN__)
     #define OS_STR "Cygwin"
+    #define OS_DEF "OS_CYGWIN"
     #define OS_CYGWIN
     #define BUF_FILENAMES   256
 #elif __APPLE__
     #define OS_STR "Apple"
+    #define OS_DEF "OS_APPLE"
     #define OS_APPLE
     #define BUF_FILENAMES   256
     #include <TargetConditionals.h>
@@ -75,22 +78,26 @@ SOFTWARE. */
     #endif
 #elif __ANDROID__
     #define OS_STR "Android"
+    #define OS_DEF "OS_ANDROID"
     #define OS_ANDROID
     #define BUF_FILENAMES   256
     // Below __linux__ check should be enough to handle Android,
     // but something may be unique to Android.
 #elif __linux__
     #define OS_STR "Linux"
+    #define OS_DEF "OS_LINUX"
     #define OS_LINUX
     #define BUF_FILENAMES   256
     // linux
 #elif __unix__ // all unices not caught above
-    #define OS_STR "Apple"
+    #define OS_STR "Unix"
+    #define OS_DEF "OS_UNIX"
     #define OS_UNIX
     #define BUF_FILENAMES   256
     // Unix
 #elif defined(_POSIX_VERSION)
     #define OS_STR "Posix"
+    #define OS_DEF "OS_POSIX"
     #define OS_POSIX
     #define BUF_FILENAMES   256
     // POSIX
@@ -103,7 +110,8 @@ SOFTWARE. */
 #if defined(OS_WIN)
     #define FIND(p) "cmd /V /C \"set \"var= %s\" && set \"var=!var:/=\\!\" && for %%I in (!var!) do @echo %%~dpnxI\"", p
 #elif defined(OS_CYGWIN)
-    #define FIND(p) "find ~+/$(dirname \"%s\") -maxdepth 1 -type f -name $(basename \"%s\")", p, p
+    #define FIND(p) "find $(dirname \"%s\") -maxdepth 1 -type f -name \"$(basename \"%s\")\"", p, p
+    // #define FIND(p) "find ~+/$(dirname \"%s\") -maxdepth 1 -type f -name $(basename \"%s\")", p, p
 #endif
 /* end of globbing pattern */
 
@@ -120,9 +128,8 @@ typedef struct StrArr {
     int n;
 } StrArr;
 
-
 typedef enum {
-   CMD_BUILD,   /* expand on that to be able to only build certain projects */
+   CMD_BUILD,
    CMD_CLEAN,
    CMD_LIST,
    CMD_CONFIG,
@@ -151,7 +158,7 @@ static const char *cmdsinfo[CMD__COUNT] = {
     "List all projects (simple view)",
     "List all configurations",
     "Print the Operating System",
-    "This help output",
+    "Help output (this here)",
     "Execute quietly",
     "Also makes errors quiet",
 };
@@ -246,9 +253,9 @@ static char *static_cc(BuildList type, char *flags, char *ofile, char *cfile)
 {
     switch(type) {
         case BUILD_APP      : ;
-        case BUILD_EXAMPLES : return strprf("gcc -c -MMD -MP %s -o %s %s", flags ? flags : "", ofile, cfile);
-        case BUILD_STATIC   : return strprf("gcc -c -MMD -MP %s -o %s %s", flags ? flags : "", ofile, cfile);
-        case BUILD_SHARED   : return strprf("gcc -c -MMD -MP -fPIC %s -o %s %s", flags ? flags : "", ofile, cfile);
+        case BUILD_EXAMPLES : return strprf("gcc -c -MMD -MP %s -D%s -o %s %s", flags ? flags : "", OS_DEF, ofile, cfile);
+        case BUILD_STATIC   : return strprf("gcc -c -MMD -MP %s -D%s -o %s %s", flags ? flags : "", OS_DEF, ofile, cfile);
+        case BUILD_SHARED   : return strprf("gcc -c -MMD -MP -fPIC -D%s %s -o %s %s", flags ? flags : "", OS_DEF, ofile, cfile);
         default             : return 0;
     }
 }
@@ -359,7 +366,7 @@ StrArr *parse_pipe(char *cmd)
     int n = 1;
     while(c != EOF) {
         if(c == '\n') n++;
-        else {
+        else if(c != '\r') {
             strarr_set_n(result, n);
             str_append(&result->s[result->n - 1], "%c", c);
         }
@@ -414,9 +421,7 @@ static int strrstrn(const char s1[BUF_FILENAMES], const char *s2)
    const int len_s1 = strlen(s1);
    const int len_s2 = strlen(s2);
    for(int i = len_s1 - len_s2; i > 0; i--) {
-      if(!strncmp(&s1[i], s2, len_s2)) {
-         return i;
-      }
+      if(!strncmp(&s1[i], s2, len_s2)) return i;
    }
    return -1;
 }
@@ -441,11 +446,9 @@ static uint64_t modtime(Bd *bd, const char *filename)
     CloseHandle(filehandle);
     ULARGE_INTEGER result = {.HighPart = t.dwHighDateTime, .LowPart = t.dwLowDateTime};
     return result.QuadPart;
-#elif defined(OS_LINUX)
+#elif defined(OS_CYGWIN)
     struct stat attr;
-    if(stat(filename, &attr) == -1) {
-        return 0;
-    }
+    if(stat(filename, &attr) == -1) return 0;
     return (uint64_t)attr.st_ctime;
 #endif
 }
@@ -504,7 +507,7 @@ static void makedir(const char *dirname)
 #if defined(OS_WIN)
    // TODO make quiet (somehow it is?! or isn't?! idk)
    mkdir(dirname);
-#elif defined(OS_LINUX)
+#elif defined(OS_CYGWIN)
    mkdir(dirname, 0700);
 #endif
 }
@@ -521,6 +524,7 @@ static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf)
 
 static void link(Bd *bd, Prj *p, char *name)
 {
+    if(bd->error) return;
     if(bd->ofiles.n) {
         /* link */
         char *ofiles = 0;
@@ -550,14 +554,13 @@ static void build(Bd *bd, Prj *p)
     bool newlink = (modl > moda);
 
     makedir(p->objd);
-
     for(int k = 0; k < p->srcf.n && !bd->error; k++) {
         char *cmd = strprf(FIND(p->srcf.s[k]));
         StrArr *res = parse_pipe(cmd);
         for(int i = 0; i < res->n; i++) {
             int ext = strrstrn(res->s[i], ".c");
             int dir = strrstrn(res->s[i], SLASH_STR);
-            int len = strlen(res->s[i]);
+            // int len = strlen(res->s[i]);
             char *name = 0;
             if(p->type != BUILD_EXAMPLES) {
                 name = p->name;
@@ -569,8 +572,8 @@ static void build(Bd *bd, Prj *p)
                 newlink = (modl > moda);
                 free(appstr);
             }
-            char *srcf = strprf("%.*s", len - bd->cutoff - 1, &res->s[i][bd->cutoff]);  /* TODO dangerous ?! */
-            // char *srcf = res->s[i];
+            // char *srcf = strprf("%.*s", len - bd->cutoff - 1, &res->s[i][bd->cutoff]);  /* TODO dangerous ?! */
+            char *srcf = res->s[i];
             char *objf = strprf("%s%.*s.o", p->objd, ext - dir, &res->s[i][dir]);
             char *dfile = strprf("%s%.*s.d", p->objd, ext - dir, &res->s[i][dir]);
             uint64_t modc = modtime(bd, srcf);
@@ -587,33 +590,32 @@ static void build(Bd *bd, Prj *p)
                     }
                 }
                 strarr_free(hfiles);
+                free(hfiles);
             } else {
                 compile(bd, p, name, objf, srcf);
             }
 
-            if(newlink && !bd->ofiles.n) {
+            if(newlink && !bd->ofiles.n) { /* TODO IMPORTANT is this condition really, REALLY correct???? */
                 strarr_set_n(&bd->ofiles, bd->ofiles.n + 1);
                 bd->ofiles.s[bd->ofiles.n - 1] = strprf("%s", objf); /* TODO dangerous ?! add return value check */
             }
 
             if(p->type == BUILD_EXAMPLES) {
-                // printf("[%s] ...\n", name);
                 link(bd, p, name);
                 free(name);
             }
 
             // printf("%2s%s\n", "", res->s[i]);
             // printf("%2s%s%.*s.o\n", "", p->objd, ext - dir, &res->s[i][dir]);
-            free(srcf);
+            // free(srcf);
             free(objf);
             free(dfile);
         }
         strarr_free(res);
+        free(res);
         free(cmd);
     }
-
     if(p->type != BUILD_EXAMPLES) link(bd, p, p->name);
-    
 }
 
 static void clean(Bd *bd, Prj *p)
@@ -635,6 +637,7 @@ static void clean(Bd *bd, Prj *p)
                 free(appstr);
             }
             strarr_free(res);
+            free(res);
             free(cmd);
         }
     }
@@ -647,7 +650,7 @@ static void clean(Bd *bd, Prj *p)
     system(delfolder);
     free(delfiles);
     free(delfolder);
-#elif defined(OS_LINUX)
+#elif defined(OS_CYGWIN)
     char *del = strprf("rm -rf %s %s", p->objd, exes);
     BD_MSG(bd, "[\033[95m%s\033[0m] %s", exes, del); /* bright magenta */
     system(del);
@@ -663,7 +666,7 @@ static void bd_execute(Bd *bd, CmdList cmd)
         .name = "a",
         .objd = "obj",
         .srcf = D("src/*.c"),
-        .cflgs = "-Wall",
+        .cflgs = "-Wall -O2",
     }};
 
 
