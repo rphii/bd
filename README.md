@@ -9,7 +9,7 @@ Simple (to use), one-file build tool for C projects.
 To see a list of all available commands and their description, run `./bd -h`. Most important commands:
 - `build` build the projects
 - `clean` clean the mess
-- `clean build` basically requild
+- `clean build` basically rebuild
 
 ## Colors
 I picked colors for the following states:
