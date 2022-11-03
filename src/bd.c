@@ -16,7 +16,6 @@
     #define OS_WIN
     #define SLASH_STR   "\\"
     #define SLASH_CH    '\\'
-    #define EXT_STR ".exe"
     #ifdef _WIN64
     #include "windows.h"
     #include "fileapi.h"
@@ -30,7 +29,6 @@
     /* common things by all others */
     #define SLASH_STR   "/"
     #define SLASH_CH    '/'
-    #define EXT_STR ""
 #endif
 #if defined(OS_WIN)
 #elif defined(__CYGWIN__)
@@ -93,6 +91,8 @@
 #define BD_MSG(bd,...)  if(!bd->quiet) { printf(__VA_ARGS__); printf("\n"); }
 #define SIZE_ARRAY(x)   (sizeof(x)/sizeof(*x))
 
+/* structs */
+
 typedef struct StrArr {
     char **s;
     int n;
@@ -144,27 +144,31 @@ typedef struct {
 } Bd;
 
 typedef enum {
-    TYPE_APP,
-    TYPE_STATIC,
-    TYPE_SHARED,
-    TYPE__COUNT,
-} TypeList;
-static char *static_cc[TYPE__COUNT] = {
-    "gcc -c -MMD -MP %s -o %s %s", // flags, ofile, cfile
-    "gcc -c -MMD -MP %s -o %s %s", // flags, ofile, cfile
-    "gcc -c -MMD -MP -fPIC %s -o %s %s", // flags, ofile, cfile
-};
-static char *static_ld[TYPE__COUNT] = {
-    "gcc %s -o %s %s %s", // options, name, ofiles, libstuff
-    "ar rcs lib%s %s",  // name[.a], ofiles
-    "gcc -shared -fPIC %s -o lib%s %s %s", // options, name[.so/.dll], ofiles, more options
-};
-static const char *type_str[] = {
+    BUILD_APP,
+    BUILD_EXAMPLES,
+    BUILD_STATIC,
+    BUILD_SHARED,
+    BUILD__COUNT,
+} BuildList;
+static const char *static_build_str[BUILD__COUNT] = {
     "App",
+    "Example",
     "Static",
     "Shared",
 };
-
+static char *static_ext[BUILD__COUNT] = {
+#if defined(OS_WIN)
+    ".exe",
+    ".exe",
+    ".a",
+    ".dll",
+#elif defined(OS_CYGWIN)
+    ".exe",
+    ".exe",
+    ".a",
+    ".dll",
+#endif
+};
 typedef struct Prj {
     char *cflgs;    /* compile flags / options */   
     char *lopts;    /* linker flags / options */
@@ -172,21 +176,31 @@ typedef struct Prj {
     char *name;     /* name of the thing */
     char *objd;     /* object directory */
     StrArr srcf;    /* source files */
-    TypeList type;  /* type */
+    BuildList type; /* type */
 } Prj;
 
-static void prj_print(Prj *p, bool simple)
-{
-    if(!p) return;
-    printf("[%s] : %s\n", p->name, type_str[p->type]);
-    if(simple) return;
-    printf("  cflgs = %s\n", p->cflgs);
-    printf("  lopts = %s\n", p->lopts);
-    printf("  llibs = %s\n", p->llibs);
-    printf("  [%s] : \n", p->objd);
-    for(int i = 0; i < p->srcf.n; i++) printf("%4s%s\n", "", p->srcf.s[i]);
-}
+/* all function prototypes */
+static void bd_execute(Bd *bd, CmdList cmd);
+char *strprf(char *format, ...);
+static char *static_cc(BuildList type, char *flags, char *ofile, char *cfile);
+static char *static_ld(BuildList type, char *options, char *name, char *ofiles, char *libstuff);
+static void prj_print(Prj *p, bool simple);
+StrArr *strarr_new();
+void strarr_free(StrArr *arr);
+void strarr_set_n(StrArr *arr, int n);
+int str_append(char **str, char *format, ...);
+StrArr *parse_pipe(char *cmd);
+StrArr *parse_dfile(char *dfile);
+static int strrstrn(const char s1[BUF_FILENAMES], const char *s2);
+static uint64_t modtime(Bd *bd, const char *filename);
+static uint64_t modlibs(Bd *bd, char *llibs);
+static void makedir(const char *dirname);
+static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf);
+static void link(Bd *bd, Prj *p, char *name);
+static void build(Bd *bd, Prj *p);
+static void clean(Bd *bd, Prj *p);
 
+/* function implementations */
 char *strprf(char *format, ...)
 {
     if(!format) return 0;
@@ -203,6 +217,55 @@ char *strprf(char *format, ...)
     vsnprintf(result, len_app + 1, format, argp);
     va_end(argp);
     return result;
+}
+
+static char *static_cc(BuildList type, char *flags, char *ofile, char *cfile)
+{
+    switch(type) {
+        case BUILD_APP      : ;
+        case BUILD_EXAMPLES : return strprf("gcc -c -MMD -MP %s -o %s %s", flags ? flags : "", ofile, cfile);
+        case BUILD_STATIC   : return strprf("gcc -c -MMD -MP %s -o %s %s", flags ? flags : "", ofile, cfile);
+        case BUILD_SHARED   : return strprf("gcc -c -MMD -MP -fPIC %s -o %s %s", flags ? flags : "", ofile, cfile);
+        default             : return 0;
+    }
+}
+static char *static_ld(BuildList type, char *options, char *name, char *ofiles, char *libstuff)
+{
+    switch(type) {
+        case BUILD_APP      : ;
+        case BUILD_EXAMPLES : return strprf("gcc %s -o %s %s %s", options ? options : "", name, ofiles, libstuff ? libstuff : "");
+        case BUILD_STATIC   : return strprf("ar rcs %s%s %s", name, static_ext[type], ofiles);
+        case BUILD_SHARED   : return strprf("gcc -shared -fPIC %s -o %s%s %s %s", options ? options : "", name, static_ext[type], ofiles, libstuff ? libstuff : "");
+        default             : return 0;
+    }
+}
+
+static void prj_print(Prj *p, bool simple)
+{
+    if(!p) return;
+    if(p->type != BUILD_EXAMPLES) {
+        printf("[%s] : %s\n", p->name, static_build_str[p->type]);
+    } else {
+        for(int k = 0; k < p->srcf.n; k++) {
+            char *cmd = strprf(FIND(p->srcf.s[k]));
+            StrArr *res = parse_pipe(cmd);
+            for(int i = 0; i < res->n; i++) {
+                int ext = strrstrn(res->s[i], ".c");
+                int dir = strrstrn(res->s[i], SLASH_STR);
+                char *name = strprf("%.*s", ext - dir - 1, &res->s[i][dir + 1]); /* TODO dangerous ?! */
+                printf("[%s] : %s\n", name, static_build_str[p->type]);
+                free(name);
+            }
+            free(res);
+            free(cmd);
+        }
+    }
+    if(simple) return;
+    printf("  cflgs = %s\n", p->cflgs);
+    printf("  lopts = %s\n", p->lopts);
+    printf("  llibs = %s\n", p->llibs);
+    printf("  [%s] : \n", p->objd);
+    for(int i = 0; i < p->srcf.n; i++) printf("%4s%s\n", "", p->srcf.s[i]);
 }
 
 StrArr *strarr_new()
@@ -341,7 +404,7 @@ static uint64_t modtime(Bd *bd, const char *filename)
     HANDLE filehandle = CreateFileA(filename, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
     if(filehandle == INVALID_HANDLE_VALUE) {
         DWORD lasterr = GetLastError();
-        if(lasterr != ERROR_FILE_NOT_FOUND) {
+        if(lasterr != ERROR_FILE_NOT_FOUND && lasterr != ERROR_PATH_NOT_FOUND) {
             BD_ERR(bd, "%s: Failed to get handle (code %ld)", filename, lasterr);
         }
         return 0;
@@ -364,6 +427,55 @@ static uint64_t modtime(Bd *bd, const char *filename)
 #endif
 }
 
+/* return the most recend library time */
+static uint64_t modlibs(Bd *bd, char *llibs)
+{
+    if(!llibs) return 0;
+    int llibs_len = strlen(llibs);
+    /* filter out paths (-L= flag) */
+    char *lpath = llibs;
+    StrArr *lpaths = strarr_new();
+    while(*lpath) {
+        lpath = strstr(lpath, "-L=");
+        if(!lpath) break;
+        lpath += 3; /* "-L=" */
+        char *space = memchr(lpath, ' ', llibs + llibs_len - lpath);
+        space = space ? space : lpath + llibs_len;
+        strarr_set_n(lpaths, lpaths->n + 1);
+        lpaths->s[lpaths->n - 1] = strprf("%.*s", (int)(space - lpath), lpath); /* TODO risky, check return val */
+        lpath = space + 1;
+    }
+    /* filter out names (-l= flag)*/
+    char *lname = llibs;
+    StrArr *lnames = strarr_new();
+    while(*lname) {
+        lname = strstr(lname, "-l=");
+        if(!lname) break;
+        lname += 3; /* "-l= "*/
+        char *space = memchr(lname, ' ', llibs + llibs_len - lname);
+        space = space ? space : lpath + llibs_len;
+        strarr_set_n(lnames, lnames->n + 1);
+        lnames->s[lnames->n - 1] = strprf("%.*s", (int)(space - lname), lname); /* TODO risky, check return val */
+        lpath = space + 1;
+    }
+    /* check if library changed */
+    uint64_t recent = 0;
+    for(int i = 0; i < lpaths->n; i++) {
+        for(int j = 0; j < lnames->n; j++) {
+            char *libstatic = strprf("%s%slib%s%s", lpaths->s[i], SLASH_STR, lnames->s[j], static_ext[BUILD_STATIC]);
+            char *libshared = strprf("%s%slib%s%s", lpaths->s[i], SLASH_STR, lnames->s[j], static_ext[BUILD_SHARED]);
+            uint64_t modstatic = modtime(bd, libstatic);
+            uint64_t modshared = modtime(bd, libshared);
+            recent = modstatic > recent ? modstatic : recent;
+            recent = modshared > recent ? modshared : recent;
+        }
+    }
+
+    free(lpaths);
+    free(lnames);
+    return recent;
+}
+
 static void makedir(const char *dirname)
 {
 #if defined(OS_WIN)
@@ -374,27 +486,67 @@ static void makedir(const char *dirname)
 #endif
 }
 
+static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf)
+{
+    char *cc = static_cc(p->type, p->cflgs, objf, srcf);
+    strarr_set_n(&bd->ofiles, bd->ofiles.n + 1);
+    str_append(&bd->ofiles.s[bd->ofiles.n - 1], objf);
+    BD_MSG(bd, "[\033[96m%s\033[0m] %s", name, cc); /* bright cyan color */
+    bd->error = system(cc);
+    free(cc);
+}
+
+static void link(Bd *bd, Prj *p, char *name)
+{
+    if(bd->ofiles.n) {
+        /* link */
+        char *ofiles = 0;
+        for(int i = 0; i < bd->ofiles.n; i++) str_append(&ofiles, "%s ", bd->ofiles.s[i]);
+        char *ld = static_ld(p->type, p->lopts, name, ofiles, p->llibs);
+        BD_MSG(bd, "[\033[93m%s\033[0m] %s", name, ld); /* bright yellow color*/
+        bd->error = system(ld);
+        free(ofiles);
+        free(ld);
+        strarr_free(&bd->ofiles);
+    } else {
+        BD_MSG(bd, "[\033[92m%s\033[0m] is up to date", name); /* bright green color */
+    }
+}
+
 static void build(Bd *bd, Prj *p)
 {
     if(!bd) return;
     if(bd->error) return;
     
-    // TODO make this a function like, exist_dir?!
-    char *appstr = strprf("%s"EXT_STR, p->name);
-    bool newbuild = (modtime(bd, appstr) == 0);
+    char *appstr = strprf("%s%s", p->name, static_ext[p->type]);
+    uint64_t moda = modtime(bd, appstr);
     free(appstr);
+    bool newbuild = (moda == 0);
+    /* check if any dependant library was modified */
+    uint64_t modl = modlibs(bd, p->llibs);
+    bool newlink = (modl > moda);
 
     makedir(p->objd);
 
-    for(int i = 0; i < p->srcf.n && !bd->error; i++) {
-        bool compile = false;
-        char *cmd = strprf(FIND(p->srcf.s[i]));
+    for(int k = 0; k < p->srcf.n && !bd->error; k++) {
+        char *cmd = strprf(FIND(p->srcf.s[k]));
         StrArr *res = parse_pipe(cmd);
         for(int i = 0; i < res->n; i++) {
             int ext = strrstrn(res->s[i], ".c");
             int dir = strrstrn(res->s[i], SLASH_STR);
             int len = strlen(res->s[i]);
-            char *srcf = strprf("%.*s", len - bd->cutoff - 1, &res->s[i][bd->cutoff]);  /* dangerous ?! */
+            char *name = 0;
+            if(p->type != BUILD_EXAMPLES) {
+                name = p->name;
+            } else {
+                name = strprf("%.*s", ext - dir - 1, &res->s[i][dir + 1]); /* TODO dangerous ?! */
+                appstr = strprf("%s%s", name, static_ext[p->type]);
+                moda = modtime(bd, appstr);
+                newbuild = (moda == 0);
+                newlink = (modl > moda);
+                free(appstr);
+            }
+            char *srcf = strprf("%.*s", len - bd->cutoff - 1, &res->s[i][bd->cutoff]);  /* TODO dangerous ?! */
             // char *srcf = res->s[i];
             char *objf = strprf("%s%.*s.o", p->objd, ext - dir, &res->s[i][dir]);
             char *dfile = strprf("%s%.*s.d", p->objd, ext - dir, &res->s[i][dir]);
@@ -403,22 +555,28 @@ static void build(Bd *bd, Prj *p)
             if(!newbuild && modo >= modc) {
                 /* check .d file in objd */
                 StrArr *hfiles = parse_dfile(dfile);
-                for(int j = 0; !compile && hfiles && j < hfiles->n; j++) {
+                for(int j = 0; hfiles && j < hfiles->n; j++) {
                     // printf("[DEP] %s\n", hfiles->s[j]);
                     uint64_t modh = modtime(bd, hfiles->s[j]);
-                    if(modh > modo) compile = true;
+                    if(modh > modo) {
+                        compile(bd, p, name, objf, srcf);
+                        break;
+                    }
                 }
                 strarr_free(hfiles);
             } else {
-                compile = true;
+                compile(bd, p, name, objf, srcf);
             }
-            if(compile) {
-                char *cc = strprf(static_cc[p->type], p->cflgs ? p->cflgs : "", objf, srcf);
+
+            if(newlink && !bd->ofiles.n) {
                 strarr_set_n(&bd->ofiles, bd->ofiles.n + 1);
-                str_append(&bd->ofiles.s[bd->ofiles.n - 1], objf);
-                BD_MSG(bd, "[%s] %s", p->name, cc);
-                bd->error = system(cc);
-                free(cc);
+                bd->ofiles.s[bd->ofiles.n - 1] = strprf("%s", objf); /* TODO dangerous ?! add return value check */
+            }
+
+            if(p->type == BUILD_EXAMPLES) {
+                // printf("[%s] ...\n", name);
+                link(bd, p, name);
+                free(name);
             }
 
             // printf("%2s%s\n", "", res->s[i]);
@@ -431,47 +589,57 @@ static void build(Bd *bd, Prj *p)
         free(cmd);
     }
 
-    if(bd->ofiles.n) {
-        /* link */
-        char *ofiles = 0;
-        for(int i = 0; i < bd->ofiles.n; i++) str_append(&ofiles, "%s ", bd->ofiles.s[i]);
-        char *ld = strprf(static_ld[p->type], p->lopts ? p->lopts : "", p->name, ofiles, p->llibs ? p->llibs : "");
-        BD_MSG(bd, "[%s] %s", p->name, ld);
-        bd->error = system(ld);
-        free(ofiles);
-        free(ld);
-    } else {
-        BD_MSG(bd, "[%s] is up to date", p->name);
-    }
+    if(p->type != BUILD_EXAMPLES) link(bd, p, p->name);
     
-    strarr_free(&bd->ofiles);
 }
 
 static void clean(Bd *bd, Prj *p)
 {
+    char *exes = 0;
+    if(p->type != BUILD_EXAMPLES) {
+        exes = strprf("%s%s", p->name, static_ext[p->type]);
+    } else {
+        for(int k = 0; k < p->srcf.n && !bd->error; k++) {
+            char *cmd = strprf(FIND(p->srcf.s[k]));
+            StrArr *res = parse_pipe(cmd);
+            for(int i = 0; i < res->n; i++) {
+                int ext = strrstrn(res->s[i], ".c");
+                int dir = strrstrn(res->s[i], SLASH_STR);
+                char *name = strprf("%.*s", ext - dir - 1, &res->s[i][dir + 1]); /* TODO dangerous ?! */
+                char *appstr = strprf("%s%s ", name, static_ext[p->type]);
+                str_append(&exes, "%s", appstr);
+                free(name);
+                free(appstr);
+            }
+            strarr_free(res);
+            free(cmd);
+        }
+    }
 #if defined(OS_WIN)
-    char *delfiles = strprf("del /q %s %s.exe 2>nul", p->objd, p->name);
+    char *delfiles = strprf("del /q %s %s 2>nul", p->objd, exes);
     char *delfolder = strprf("rmdir %s 2>nul", p->objd);
-    BD_MSG(bd, "[%s] %s", p->name, delfiles);
+    BD_MSG(bd, "[%s] %s", exes, delfiles);
     system(delfiles);
-    BD_MSG(bd, "[%s] %s", p->name, delfolder);
+    BD_MSG(bd, "[%s] %s", exes, delfolder);
     system(delfolder);
     free(delfiles);
     free(delfolder);
 #elif defined(OS_LINUX)
-    char *del = strprf("rm -rf %s %s", p->objd, p->name);
-    BD_MSG(bd, "[%s] %s", p->name, del);
+    char *del = strprf("rm -rf %s %s", p->objd, exes);
+    BD_MSG(bd, "[%s] %s", exes, del);
     system(del);
+    free(del);
 #endif
+    free(exes);
 }
 
 static void bd_execute(Bd *bd, CmdList cmd)
 {
     Prj p[] = {{
-        .name = "Test",
-        .type = TYPE_APP,
+        .type = BUILD_APP,
+        .name = "bd",
         .objd = "obj",
-        .srcf = D("src/test.c"),
+        .srcf = D("src/*.c"),
         .cflgs = "-Wall",
     }};
 
@@ -511,6 +679,7 @@ static void bd_execute(Bd *bd, CmdList cmd)
     }
 }
 
+/* start of program */
 int main(int argc, const char **argv)
 {
     Bd bd = {0};
