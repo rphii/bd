@@ -19,7 +19,7 @@ I picked colors for the following states:
 - `BUILD_APP` builds an executable
 - `BUILD_STATIC` builds a static library
 - `BUILD_SHARED` builds a shared library
-- `BUILD_EXAMPLES` same as app, but it links each specified [file]()
+- `BUILD_EXAMPLES` same as app, but it links each specified file
 ### Name of the project (`Prj::name`)
 Define a name for your output file. **If you're building a library**, precede the name with `lib`. If you're building examples, the name is ignored, instead it create the name based off the specified file.
 ### Object directory (`Prj::objd`)
