@@ -1,6 +1,6 @@
 #### Start of system configuration section. ####
 VERSION := 1.00
-CC      := gcc -O
+CC      := gcc
 CFLAGS  := -Wall -c
 LDFLAGS := 
 CSUFFIX	:= .c
