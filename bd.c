@@ -149,9 +149,9 @@ static const char *cmdsinfo[CMD__COUNT] = {
     "Build the projects",
     "Clean created files",
     "List all projects (simple view)",
-    "List all configured projects",
+    "List all configurations",
     "Print the Operating System",
-    "Help output (this here)",
+    "This help output",
     "Execute quietly",
     "Also makes errors quiet",
 };
