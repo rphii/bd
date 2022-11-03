@@ -6,7 +6,10 @@ Simple (to use), one-file build tool for C projects.
 2. Run `gcc -Wall -o bd bd.c` or `gcc -Wall -o bd bd.c; ./bd`
 
 ## Help / Command line interface
-To see a list of all available commands and their description, run `./bd -h`
+To see a list of all available commands and their description, run `./bd -h`. Most important commands:
+- `build` build the projects
+- `clean` clean the mess
+- `clean build` basically requild
 
 ## Colors
 I picked colors for the following states:

@@ -98,8 +98,9 @@ typedef struct StrArr {
     int n;
 } StrArr;
 
+
 typedef enum {
-   CMD_BUILD,
+   CMD_BUILD,   /* expand on that to be able to only build certain projects */
    CMD_CLEAN,
    CMD_LIST,
    CMD_CONFIG,
@@ -240,7 +241,7 @@ static char *static_ld(BuildList type, char *options, char *name, char *ofiles, 
     }
 }
 
-static void prj_print(Prj *p, bool simple)
+static void prj_print(Prj *p, bool simple) /* TODO list if they're up to date, & clean up the mess with EXAMPLES (difference in listing/cleaning/building...) */
 {
     if(!p) return;
     if(p->type != BUILD_EXAMPLES) {
@@ -618,15 +619,15 @@ static void clean(Bd *bd, Prj *p)
 #if defined(OS_WIN)
     char *delfiles = strprf("del /q %s %s 2>nul", p->objd, exes);
     char *delfolder = strprf("rmdir %s 2>nul", p->objd);
-    BD_MSG(bd, "[%s] %s", exes, delfiles);
+    BD_MSG(bd, "[\033[95m%s\033[0m] %s", exes, delfiles); /* bright magenta */
     system(delfiles);
-    BD_MSG(bd, "[%s] %s", exes, delfolder);
+    BD_MSG(bd, "[\033[95m%s\033[0m] %s", exes, delfolder); /* bright magenta */
     system(delfolder);
     free(delfiles);
     free(delfolder);
 #elif defined(OS_LINUX)
     char *del = strprf("rm -rf %s %s", p->objd, exes);
-    BD_MSG(bd, "[%s] %s", exes, del);
+    BD_MSG(bd, "[\033[95m%s\033[0m] %s", exes, del); /* bright magenta */
     system(del);
     free(del);
 #endif
@@ -639,7 +640,7 @@ static void bd_execute(Bd *bd, CmdList cmd)
         .type = BUILD_APP,
         .name = "bd",
         .objd = "obj",
-        .srcf = D("src/*.c"),
+        .srcf = D("bd.c"),
         .cflgs = "-Wall",
     }};
 
