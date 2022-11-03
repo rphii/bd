@@ -2,7 +2,7 @@
 Simple (to use), one-file build tool for C projects.
 
 ## How to use
-1. Put [`bd.c`](src/bd.c) into the root of your project, [configure](#how-to-configure) settings if needed
+1. Put [`bd.c`](bd.c) into the root of your project, [configure](#how-to-configure) settings if needed
 2. Run `gcc -Wall -o bd bd.c` or `gcc -Wall -o bd bd.c; ./bd`
 
 ## Help / Command line interface
