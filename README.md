@@ -7,7 +7,7 @@ Simple (to use), one-file build tool for C projects.
 
 ## Help / Command line interface
 To see a list of all available commands and their description, run `./bd -h`. Most important commands:
-- `build` build the projects
+- `build` build the projects (providing no arguments defaults to this)
 - `clean` clean the mess
 - `clean build` basically rebuild
 
