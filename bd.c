@@ -1,3 +1,25 @@
+/* MIT License
+
+Copyright (c) 2022 rphii
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE. */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -245,7 +267,7 @@ static void prj_print(Prj *p, bool simple) /* TODO list if they're up to date, &
 {
     if(!p) return;
     if(p->type != BUILD_EXAMPLES) {
-        printf("[%s] : %s\n", p->name, static_build_str[p->type]);
+        printf("%-7s : [%s]\n", static_build_str[p->type], p->name);
     } else {
         for(int k = 0; k < p->srcf.n; k++) {
             char *cmd = strprf(FIND(p->srcf.s[k]));
@@ -254,7 +276,7 @@ static void prj_print(Prj *p, bool simple) /* TODO list if they're up to date, &
                 int ext = strrstrn(res->s[i], ".c");
                 int dir = strrstrn(res->s[i], SLASH_STR);
                 char *name = strprf("%.*s", ext - dir - 1, &res->s[i][dir + 1]); /* TODO dangerous ?! */
-                printf("[%s] : %s\n", name, static_build_str[p->type]);
+                printf("%-7s : [%s]\n", static_build_str[p->type], name);
                 free(name);
             }
             free(res);
@@ -638,9 +660,9 @@ static void bd_execute(Bd *bd, CmdList cmd)
 {
     Prj p[] = {{
         .type = BUILD_APP,
-        .name = "bd",
+        .name = "a",
         .objd = "obj",
-        .srcf = D("bd.c"),
+        .srcf = D("src/*.c"),
         .cflgs = "-Wall",
     }};
 
