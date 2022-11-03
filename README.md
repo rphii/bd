@@ -21,11 +21,11 @@ I picked colors for the following states:
 - `BUILD_SHARED` builds a shared library
 - `BUILD_EXAMPLES` same as app, but it links each specified file
 ### Name of the project (`Prj::name`)
-Define a name for your output file. **If you're building a library**, precede the name with `lib`. If you're building examples, the name is ignored, instead it create the name based off the specified file.
+String of your output file (without extension). **If you're building a library**, precede the name with `lib`. If you're building examples, the name is ignored, instead it create the name based off the specified file(s).
 ### Object directory (`Prj::objd`)
-In this folder all the object files will be dumped. Also, this folder will be deleted completely when cleaning.
+In this folder all the object (`.o`) and dependency (`.d`) files will be dumped. Also, this folder will be deleted completely when cleaning.
 ### Source files (`Prj::srcf`)
-Specify source files to take into account. It's recommended to only use `*` and `?` for globbing to support all operating systems.
+String-array of source files to take into account. It's recommended to only use `*` and `?` for globbing to support all operating systems.
 ### C compile flags (`Prj::cflgs`)
 String with your own flags. It's recommended to always at least include `-Wall`
 ### Linker options (`Prj::lopts`)
