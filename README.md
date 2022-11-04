@@ -1,6 +1,12 @@
 # BD
 Simple (to use), one-file build tool for C projects.
 
+## What does it do?
+- It's a simple build tool for C projects
+- Its instructions on what to build are directly stored within the source code itself, making it compact
+- You can choose between four different [build types](#types-of-projects-prjtype)
+- It makes sure to recompile a file if their dependency (either header file or library) was modified
+
 ## How to use
 1. Put [`bd.c`](bd.c) into (the root of) your project, [configure](#how-to-configure) settings if needed
 2. Run `gcc -Wall -O2 -o bd bd.c` to compile it or `gcc -Wall -O2 -o bd bd.c; ./bd` to compile and execute
@@ -11,12 +17,6 @@ To see a list of all available commands and their description, run `./bd -h`. Mo
 - `build` build the projects (providing no arguments defaults to this)
 - `clean` clean the mess
 - `clean build` basically rebuild
-
-## What does it do?
-- It's a simple build tool for C projects
-- Its instructions on what to build are directly stored within the source code itself, making it compact
-- You can choose between four different [build types](#types-of-projects-prjtype)
-- It makes sure to recompile a file if their dependency (either header file or library) was modified
 
 ## Colors
 Following colors were picked depending on the action:
