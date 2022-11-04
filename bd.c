@@ -484,7 +484,7 @@ static StrArr *extract_dirs(Bd *bd, char *path, bool skiplast)
 {
     StrArr *result = strarr_new();
     /* go over the given path and split by '/' */
-    int len = strlen(path);
+    int len = path ? strlen(path) : 0;
     for(int i = 0; i < len; i++) {
         bool mkd = false;
         if(path[i] == '/') mkd = true;
@@ -496,23 +496,7 @@ static StrArr *extract_dirs(Bd *bd, char *path, bool skiplast)
     }
     return result;
 }
-#if 0
-static void makedirs(Bd *bd, char *dirnames, bool skiplast)
-{
-    /* go over dirnames and split by '/' */
-    int len = strlen(dirnames);
-    for(int i = 0; i < len; i++) {
-        bool mkd = false;
-        if(dirnames[i] == '/') mkd = true;
-        else if(i + 1 == len && !skiplast) mkd = true;
-        if(mkd) {
-            char *dirname = strprf(0, "%.*s", i + 1, dirnames);
-            makedir(dirname);
-            free(dirname);
-        }
-    }
-}
-#endif
+
 static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf)
 {
     char *cc = static_cc(p->type, p->cflgs, objf, srcf);
@@ -674,11 +658,13 @@ static char *path2thing(Bd *bd, Prj *p, char *thing, bool reverse)
 static void clean(Bd *bd, Prj *p)
 {
 #if defined(OS_WIN)
-    char rmstr[] = "del /q";
+    char delfilestr[] = "del /q";
+    char delfoldstr[] = "rmdir";
     char noerr[] = "2>nul";
 #elif defined(OS_CYGWIN)
-    char rmstr[] = "rm -f";
-    char noerr[] = "";
+    char delfilestr[] = "rm";
+    char delfoldstr[] = "rm -d";
+    char noerr[] = "2>/dev/null";
 #endif
     /* gather all files */
     StrArr *dirn = extract_dirs(bd, p->name, true);
@@ -697,20 +683,25 @@ static void clean(Bd *bd, Prj *p)
     for(int k = 0; k < targets->n; k++) {
         /* maybe check if target even exists */
         char *targetstr = strprf(0, "%s%s", targets->s[k], static_ext[p->type]);
-        char *delfiles = strprf(0, "%s %s ", rmstr, targetstr);
+        char *delfiles = strprf(0, "%s %s ", delfilestr, targetstr);
+        char *delfolds = strprf(0, "%s ", delfoldstr);
         free(targetstr);
         /* set up loop */
         int i0 = (p->type == BUILD_EXAMPLES) ? k : 0;
         int iE = (p->type == BUILD_EXAMPLES) ? k + 1 : srcfs->n;
-        for(int i = i0; i < iE; i++) {
-            delfiles = strprf(delfiles, "%s %s ", objfs->s[i], depfs->s[i]);
-        }
+        for(int i = i0; i < iE; i++) delfiles = strprf(delfiles, "%s %s ", objfs->s[i], depfs->s[i]);
+        for(int i = dirn->n - 1; i + 1 > 0; i--) delfolds = strprf(delfolds, "%s ", dirn->s[i]);
+        for(int i = diro->n - 1; i + 1 > 0; i--) delfolds = strprf(delfolds, "%s ", diro->s[i]);
         /* now delete */
         delfiles = strprf(delfiles, noerr);
+        delfolds = strprf(delfolds, noerr);
         BD_MSG(bd, "[\033[95m%s\033[0m] %s", targets->s[k], delfiles); /* bright magenta */
         system(delfiles);
+        BD_MSG(bd, "[\033[95m%s\033[0m] %s", targets->s[k], delfolds); /* bright magenta */
+        system(delfolds);
+        free(delfiles);
+        free(delfolds);
     }
-
     /* clean up memory used */
     strarr_free(dirn);
     strarr_free(diro);
