@@ -531,7 +531,7 @@ static void build(Bd *bd, Prj *p)
     /* get most recent modified time of any included library */
     uint64_t m_llibs = modlibs(bd, p->llibs);
     /* gather all files */
-    StrArr *dirn = extract_dirs(bd, p->name, true);
+    StrArr *dirn = extract_dirs(bd, p->name, (bool)(p->type != BUILD_EXAMPLES));
     if(!dirn) BD_ERR(bd,, "Failed to get directories from name");
     StrArr *diro = extract_dirs(bd, p->objd, false);
     if(!diro) BD_ERR(bd,, "Failed to get directories from objd");
@@ -660,7 +660,7 @@ static void clean(Bd *bd, Prj *p)
     char noerr[] = "2>/dev/null";
 #endif
     /* gather all files */
-    StrArr *dirn = extract_dirs(bd, p->name, true);
+    StrArr *dirn = extract_dirs(bd, p->name, (bool)(p->type != BUILD_EXAMPLES));
     if(!dirn) BD_ERR(bd,, "Failed to get directories from name");
     StrArr *diro = extract_dirs(bd, p->objd, false);
     if(!diro) BD_ERR(bd,, "Failed to get directories from objd");
@@ -676,15 +676,15 @@ static void clean(Bd *bd, Prj *p)
     for(int k = 0; k < targets->n; k++) {
         /* maybe check if target even exists */
         char *targetstr = strprf(0, "%s%s", targets->s[k], static_ext[p->type]);
-        char *delfiles = strprf(0, "%s %s ", delfilestr, targetstr);
+        char *delfiles = strprf(0, "%s \"%s\" ", delfilestr, targetstr);
         char *delfolds = strprf(0, "%s ", delfoldstr);
         free(targetstr);
         /* set up loop */
         int i0 = (p->type == BUILD_EXAMPLES) ? k : 0;
         int iE = (p->type == BUILD_EXAMPLES) ? k + 1 : srcfs->n;
-        for(int i = i0; i < iE; i++) delfiles = strprf(delfiles, "%s %s ", objfs->s[i], depfs->s[i]);
-        for(int i = dirn->n - 1; i + 1 > 0; i--) delfolds = strprf(delfolds, "%s ", dirn->s[i]);
-        for(int i = diro->n - 1; i + 1 > 0; i--) delfolds = strprf(delfolds, "%s ", diro->s[i]);
+        for(int i = i0; i < iE; i++) delfiles = strprf(delfiles, "\"%s\" \"%s\" ", objfs->s[i], depfs->s[i]);
+        for(int i = dirn->n - 1; i + 1 > 0; i--) delfolds = strprf(delfolds, "\"%s\" ", dirn->s[i]);
+        for(int i = diro->n - 1; i + 1 > 0; i--) delfolds = strprf(delfolds, "\"%s\" ", diro->s[i]);
         /* now delete */
         delfiles = strprf(delfiles, noerr);
         delfolds = strprf(delfolds, noerr);
