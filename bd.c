@@ -214,7 +214,7 @@ static int strrstrn(const char *s1, const char *s2);
 static uint64_t modtime(Bd *bd, const char *filename);
 static uint64_t modlibs(Bd *bd, char *llibs);
 static void makedir(const char *dirname);
-static void makedirs(Bd *bd, char *dirnames, bool skiplast);
+static StrArr *extract_dirs(Bd *bd, char *path, bool skiplast);
 static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf);
 static void link(Bd *bd, Prj *p, char *name);
 static void build(Bd *bd, Prj *p);
@@ -281,8 +281,13 @@ static void prj_print(Bd *bd, Prj *p, bool simple) /* TODO list if they're up to
     /* gather files */
     StrArr *srcfs = prj_srcfs(bd, p);
     if(!srcfs) BD_ERR(bd,, "No source files");
+    StrArr *objfs = prj_srcfs_chg_dirext(bd, p, srcfs, p->objd, ".o");
+    if(!objfs) BD_ERR(bd,, "No object files");
+    StrArr *depfs = prj_srcfs_chg_dirext(bd, p, srcfs, p->objd, ".d");
+    if(!depfs) BD_ERR(bd,, "No dependency files");
     StrArr *targets = prj_names(bd, p, srcfs);
     if(!targets) BD_ERR(bd,, "No targets");
+
     /* print all names */
     for(int i = 0; i < targets->n; i++) printf("%-7s : [%s]\n", static_build_str[p->type], targets->s[i]);
     strarr_free(srcfs);
@@ -332,14 +337,13 @@ static StrArr *parse_pipe(Bd *bd, char *cmd)
     FILE *fp = popen(cmd, "rb");
     if(!fp) BD_ERR(bd, 0, "Could not open pipe");
 
-    StrArr *result = 0;
+    StrArr *result = strarr_new();
+    if(!result) BD_ERR(bd, 0, "Failed to create string array");
     int c = fgetc(fp);
     int n = 1;
     while(c != EOF) {
         if(c == '\n') n++;
         else if(c != '\r') {
-            if(!result) result = strarr_new();
-            if(!result) BD_ERR(bd, 0, "Failed to create string array");
             if(!strarr_set_n(result, n)) BD_ERR(bd, 0, "Failed to modify StrArr");
             result->s[result->n - 1] = strprf(result->s[result->n - 1], "%c", c);
         }
@@ -347,6 +351,10 @@ static StrArr *parse_pipe(Bd *bd, char *cmd)
     }
 
     if(pclose(fp)) BD_ERR(bd, 0, "Could not close pipe");
+    if(!result->n) {    /* TODO check other functions that use `strarr_new()` to also return 0 when empty... */
+        free(result);
+        result = 0;
+    }
     return result;
 }
 
@@ -472,6 +480,23 @@ static void makedir(const char *dirname)
 #endif
 }
 /* TODO FIX */
+static StrArr *extract_dirs(Bd *bd, char *path, bool skiplast)
+{
+    StrArr *result = strarr_new();
+    /* go over the given path and split by '/' */
+    int len = strlen(path);
+    for(int i = 0; i < len; i++) {
+        bool mkd = false;
+        if(path[i] == '/') mkd = true;
+        else if(i + 1 == len && !skiplast) mkd = true;
+        if(mkd) {
+            if(!strarr_set_n(result, result->n + 1)) BD_ERR(bd, 0, "Failed to modify StrArr");
+            result->s[result->n - 1] = strprf(0, "%.*s", i + 1, path);
+        }
+    }
+    return result;
+}
+#if 0
 static void makedirs(Bd *bd, char *dirnames, bool skiplast)
 {
     /* go over dirnames and split by '/' */
@@ -487,7 +512,7 @@ static void makedirs(Bd *bd, char *dirnames, bool skiplast)
         }
     }
 }
-
+#endif
 static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf)
 {
     char *cc = static_cc(p->type, p->cflgs, objf, srcf);
@@ -523,10 +548,11 @@ static void build(Bd *bd, Prj *p)
     /* get most recent modified time of any included library */
     uint64_t m_llibs = modlibs(bd, p->llibs);
     /* TODO repair this....!!! */
-    /* make sure all required directories exist */
-    // makedirs(bd, p->name, true);
-    // makedirs(bd, p->objd, false);
     /* gather all files */
+    StrArr *dirn = extract_dirs(bd, p->name, true);
+    if(!dirn) BD_ERR(bd,, "Failed to get directories from name");
+    StrArr *diro = extract_dirs(bd, p->objd, false);
+    if(!diro) BD_ERR(bd,, "Failed to get directories from objd");
     StrArr *srcfs = prj_srcfs(bd, p);
     if(!srcfs) BD_ERR(bd,, "No source files");
     StrArr *objfs = prj_srcfs_chg_dirext(bd, p, srcfs, p->objd, ".o");
@@ -535,6 +561,9 @@ static void build(Bd *bd, Prj *p)
     if(!depfs) BD_ERR(bd,, "No dependency files");
     StrArr *targets = prj_names(bd, p, srcfs);
     if(!targets) BD_ERR(bd,, "No targets to build");
+    /* create folders */
+    for(int i = 0; i < dirn->n; i++) makedir(dirn->s[i]);
+    for(int i = 0; i < diro->n; i++) makedir(diro->s[i]);
     /* now compile it */
     for(int k = 0; k < targets->n; k++) {
         /* maybe check if target even exists */
@@ -579,10 +608,14 @@ static void build(Bd *bd, Prj *p)
     }
     if(p->type != BUILD_EXAMPLES) link(bd, p, targets->s[0]);
     /* clean up memory used */
+    strarr_free(dirn);
+    strarr_free(diro);
     strarr_free(srcfs);
     strarr_free(objfs);
     strarr_free(depfs);
     strarr_free(targets);
+    free(dirn);
+    free(diro);
     free(srcfs);
     free(objfs);
     free(depfs);
@@ -640,46 +673,57 @@ static char *path2thing(Bd *bd, Prj *p, char *thing, bool reverse)
 
 static void clean(Bd *bd, Prj *p)
 {
-    /* collect all relevant */
-    /* collect all affected names */
-    char *exes = 0;
-    if(p->type != BUILD_EXAMPLES) {
-        exes = strprf(0, "%s%s", p->name, static_ext[p->type]);
-    } else {
-        for(int k = 0; k < p->srcf.n && !bd->error; k++) {
-            char *cmd = strprf(0, FIND(p->srcf.s[k]));
-            StrArr *res = parse_pipe(bd, cmd);
-            if(!res) BD_ERR(bd,, "Pipe returned nothing");
-            for(int i = 0; i < res->n; i++) {
-                int ext = strrstrn(res->s[i], ".c");
-                int dir = strrstrn(res->s[i], SLASH_STR);
-                char *name = strprf(0, "%.*s", ext - dir - 1, &res->s[i][dir + 1]);
-                char *appstr = strprf(0, "%s%s ", name, static_ext[p->type]);
-                exes = strprf(exes, "%s", appstr);
-                free(name);
-                free(appstr);
-            }
-            strarr_free(res);
-            free(res);
-            free(cmd);
-        }
-    }
 #if defined(OS_WIN)
-    char *delfiles = strprf(0, "del /q %s %s 2>nul", p->objd, exes);
-    char *delfolder = strprf(0, "rmdir %s 2>nul", p->objd);
-    BD_MSG(bd, "[\033[95m%s\033[0m] %s", exes, delfiles); /* bright magenta */
-    system(delfiles);
-    BD_MSG(bd, "[\033[95m%s\033[0m] %s", exes, delfolder); /* bright magenta */
-    system(delfolder);
-    free(delfiles);
-    free(delfolder);
+    char rmstr[] = "del /q";
+    char noerr[] = "2>nul";
 #elif defined(OS_CYGWIN)
-    char *del = strprf(0, "rm -rf %s %s", p->objd, exes);
-    BD_MSG(bd, "[\033[95m%s\033[0m] %s", exes, del); /* bright magenta */
-    system(del);
-    free(del);
+    char rmstr[] = "rm -f";
+    char noerr[] = "";
 #endif
-    free(exes);
+    /* gather all files */
+    StrArr *dirn = extract_dirs(bd, p->name, true);
+    if(!dirn) BD_ERR(bd,, "Failed to get directories from name");
+    StrArr *diro = extract_dirs(bd, p->objd, false);
+    if(!diro) BD_ERR(bd,, "Failed to get directories from objd");
+    StrArr *srcfs = prj_srcfs(bd, p);
+    if(!srcfs) BD_ERR(bd,, "No source files");
+    StrArr *objfs = prj_srcfs_chg_dirext(bd, p, srcfs, p->objd, ".o");
+    if(!objfs) BD_ERR(bd,, "No object files");
+    StrArr *depfs = prj_srcfs_chg_dirext(bd, p, srcfs, p->objd, ".d");
+    if(!depfs) BD_ERR(bd,, "No dependency files");
+    StrArr *targets = prj_names(bd, p, srcfs);
+    if(!targets) BD_ERR(bd,, "No targets to build");
+    /* delete all files */
+    for(int k = 0; k < targets->n; k++) {
+        /* maybe check if target even exists */
+        char *targetstr = strprf(0, "%s%s", targets->s[k], static_ext[p->type]);
+        char *delfiles = strprf(0, "%s %s ", rmstr, targetstr);
+        free(targetstr);
+        /* set up loop */
+        int i0 = (p->type == BUILD_EXAMPLES) ? k : 0;
+        int iE = (p->type == BUILD_EXAMPLES) ? k + 1 : srcfs->n;
+        for(int i = i0; i < iE; i++) {
+            delfiles = strprf(delfiles, "%s %s ", objfs->s[i], depfs->s[i]);
+        }
+        /* now delete */
+        delfiles = strprf(delfiles, noerr);
+        BD_MSG(bd, "[\033[95m%s\033[0m] %s", targets->s[k], delfiles); /* bright magenta */
+        system(delfiles);
+    }
+
+    /* clean up memory used */
+    strarr_free(dirn);
+    strarr_free(diro);
+    strarr_free(srcfs);
+    strarr_free(objfs);
+    strarr_free(depfs);
+    strarr_free(targets);
+    free(dirn);
+    free(diro);
+    free(srcfs);
+    free(objfs);
+    free(depfs);
+    free(targets);
 }
 
 static void bd_execute(Bd *bd, CmdList cmd)
@@ -736,6 +780,11 @@ static void bd_execute(Bd *bd, CmdList cmd)
 int main(int argc, const char **argv)
 {
     Bd bd = {0};
+
+    // StrArr *res = extract_dirs(&bd, "test/lol/what/", false);
+    // for(int i = 0; i < res->n; i++) printf("DIR %s\n", res->s[i]);
+    // return 0;
+
     /* create base directory */
     bd.cutoff = strrstrn(argv[0], SLASH_STR);
     bd.cutoff = bd.cutoff ? bd.cutoff + 1 : 0;
