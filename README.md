@@ -39,9 +39,9 @@ String of your output file (without extension).
 - **If you're building a library**, precede the name with `lib`.
 - If you're building examples, the name is treated like a folder name.
 ### Object directory (`Prj::objd`)
-In this folder all the object (`.o`) and dependency (`.d`) files will be dumped. This folder will be deleted **entirely** when cleaning.
+In this folder all the object (`.o`) and dependency (`.d`) files will be dumped.
 ### Source files (`Prj::srcf`)
-String-array of source files necessary to successfully compile and link the project together. It's recommended to only use `*` and `?` for globbing to support all operating systems.
+String-array of source files necessary to successfully compile and link the project together. It's recommended to only use `*` and `?` when pattern matching to support all operating systems.
 ### C compile flags (`Prj::cflgs`)
 String with your own flags. It's recommended to always at least include `-Wall`.
 ### Linker options (`Prj::lopts`)
