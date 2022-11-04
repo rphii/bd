@@ -1,3 +1,5 @@
+# IT IS NOT FULLY READY, PLEASE DO NOT USE IT YET !!!
+
 # BD
 Simple (to use), one-file build tool for C projects.
 
