@@ -26,9 +26,11 @@ Modify the template project or add multiple ones. See https://github.com/rphii/R
 - `BUILD_SHARED` builds a shared library
 - `BUILD_EXAMPLES` same as app, but it links each specified file
 ### Name of the project (`Prj::name`)
-String of your output file (without extension). **If you're building a library**, precede the name with `lib`. If you're building examples, the name is ignored, instead it create the name based off the specified file(s).
+String of your output file (without extension).
+- **If you're building a library**, precede the name with `lib`.
+- If you're building examples, the name is ignored, instead it create the name based off the specified file(s).
 ### Object directory (`Prj::objd`)
-In this folder all the object (`.o`) and dependency (`.d`) files will be dumped. Also, this folder will be deleted completely when cleaning.
+In this folder all the object (`.o`) and dependency (`.d`) files will be dumped. This folder will be deleted **entirely** when cleaning.
 ### Source files (`Prj::srcf`)
 String-array of source files necessary to successfully compile and link the project together. It's recommended to only use `*` and `?` for globbing to support all operating systems.
 ### C compile flags (`Prj::cflgs`)
@@ -37,3 +39,6 @@ String with your own flags. It's recommended to always at least include `-Wall`.
 String with your own linker options.
 ### Linker libraries (`Prj::llibs`)
 String with your own linker libraries. **Precede paths** with the `-L=` flag and **precede names** itself with the `-l=` flag.
+
+## General Notice
+- Don't have any spaces in any of the files having any business with this build tool
