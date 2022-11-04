@@ -437,54 +437,44 @@ static uint64_t modtime(Bd *bd, const char *filename)
 }
 
 /* return the most recend library time */
-/* TODO tidy up this whole function */
 static uint64_t modlibs(Bd *bd, char *llibs)
 {
     if(!llibs) return 0;
     int llibs_len = strlen(llibs);
-    /* filter out paths (-L= flag) */
-    char *lpath = llibs;
-    StrArr *lpaths = strarr_new();
-    if(!lpaths) BD_ERR(bd, 0, "Failed to create string array");
-    while(*lpath) {
-        lpath = strstr(lpath, "-L=");
-        if(!lpath) break;
-        lpath += 3; /* "-L=" */
-        char *space = memchr(lpath, ' ', llibs + llibs_len - lpath);
-        space = space ? space : lpath + llibs_len;
-        if(!strarr_set_n(lpaths, lpaths->n + 1)) BD_ERR(bd, 0, "Failed to modify StrArr");
-        lpaths->s[lpaths->n - 1] = strprf("%.*s", (int)(space - lpath), lpath);
-        lpath = space + 1;
+    /* extract paths / names from llibs */
+    char *find[] = {"-L", "-l"};
+    StrArr *arr_Ll[] = {strarr_new(), strarr_new()};
+    for(int i = 0; i < SIZE_ARRAY(arr_Ll); i++) {
+        char *search = llibs;
+        if(!arr_Ll[i]) BD_ERR(bd, 0, "Failed to create string array");
+        while(*search) {
+            search = strstr(search, find[i]);
+            if(!search) break;
+            search += strlen(find[i]) + 1;
+            char *space = memchr(search, ' ', llibs + llibs_len - search);
+            space = space ? space : search + llibs_len;
+            if(!strarr_set_n(arr_Ll[i], arr_Ll[i]->n + 1)) BD_ERR(bd, 0, "Failed to modify StrArr");
+            arr_Ll[i]->s[arr_Ll[i]->n - 1] = strprf("%.*s", (int)(space - search), search);
+            search = space + 1;
+        }
     }
-    /* filter out names (-l= flag)*/
-    char *lname = llibs;
-    StrArr *lnames = strarr_new();
-    if(!lnames) BD_ERR(bd, 0, "Failed to create string array");
-    while(*lname) {
-        lname = strstr(lname, "-l=");
-        if(!lname) break;
-        lname += 3; /* "-l= "*/
-        char *space = memchr(lname, ' ', llibs + llibs_len - lname);
-        space = space ? space : lpath + llibs_len;
-        if(!strarr_set_n(lnames, lnames->n + 1)) BD_ERR(bd, 0, "Failed to modify StrArr");
-        lnames->s[lnames->n - 1] = strprf("%.*s", (int)(space - lname), lname);
-        lpath = space + 1;
-    }
-    /* check if library changed */
+    /* finally get the most recent modified time */
     uint64_t recent = 0;
-    for(int i = 0; i < lpaths->n; i++) {
-        for(int j = 0; j < lnames->n; j++) {
-            char *libstatic = strprf("%s%slib%s%s", lpaths->s[i], SLASH_STR, lnames->s[j], static_ext[BUILD_STATIC]);
-            char *libshared = strprf("%s%slib%s%s", lpaths->s[i], SLASH_STR, lnames->s[j], static_ext[BUILD_SHARED]);
+    for(int i = 0; i < arr_Ll[0]->n; i++) {
+        for(int j = 0; j < arr_Ll[1]->n; j++) {
+            char *libstatic = strprf("%s%slib%s%s", arr_Ll[0]->s[i], SLASH_STR, arr_Ll[1]->s[j], static_ext[BUILD_STATIC]);
+            char *libshared = strprf("%s%slib%s%s", arr_Ll[0]->s[i], SLASH_STR, arr_Ll[1]->s[j], static_ext[BUILD_SHARED]);
             uint64_t modstatic = modtime(bd, libstatic);
             uint64_t modshared = modtime(bd, libshared);
             recent = modstatic > recent ? modstatic : recent;
             recent = modshared > recent ? modshared : recent;
         }
     }
-
-    free(lpaths);
-    free(lnames);
+    /* free all used arrs */
+    for(int i = 0; i < SIZE_ARRAY(arr_Ll); i++) {
+        strarr_free(arr_Ll[i]);
+        free(arr_Ll[i]);
+    }
     return recent;
 }
 
