@@ -11,6 +11,12 @@ To see a list of all available commands and their description, run `./bd -h`. Mo
 - `clean` clean the mess
 - `clean build` basically rebuild
 
+## What does it do?
+- It's a simple build tool for C projects
+- Its instructions on what to build are directly stored within the file itself
+- You can choose between four different [build types](#types-of-projects-prjtype).
+- It makes sure to recompile a file if their dependency (either header file or library) was modified
+
 ## Colors
 I picked colors for the following states:
 - cyan = compiling
@@ -38,7 +44,9 @@ String with your own flags. It's recommended to always at least include `-Wall`.
 ### Linker options (`Prj::lopts`)
 String with your own linker options.
 ### Linker libraries (`Prj::llibs`)
-String with your own linker libraries. **Precede paths** with the `-L=` flag and **precede names** itself with the `-l=` flag.
+String with your own linker libraries.
+- **Precede paths** with the `-L=` flag. (make sure to include the equals sign)
+- **precede names** with the `-l=` flag. (make sure to include the equals sign)
 
 ## General Notice
 - Don't have any spaces in any of the files having any business with this build tool
