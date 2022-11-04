@@ -108,8 +108,7 @@ SOFTWARE. */
 /* end of globbing pattern */
 
 #define D(...)          (StrArr){.s = (char *[]){__VA_ARGS__}, .n = sizeof((char *[]){__VA_ARGS__})/sizeof(*(char *[]){__VA_ARGS__})}
-// #define ERR(...)        if(1) { printf("\033[91m[ERROR:%d]\033[0m ", __LINE__); printf(__VA_ARGS__); printf("\n"); }
-#define BD_ERR(bd,...)  do { if(!bd->noerr) { printf("\033[91m[ERROR:%d]\033[0m ", __LINE__); printf(__VA_ARGS__); printf("\n"); } bd->error = __LINE__; } while(0);
+#define BD_ERR(bd,retval,...)  do { if(!bd->noerr) { printf("\033[91m[ERROR:%d]\033[0m ", __LINE__); printf(__VA_ARGS__); printf("\n"); } bd->error = __LINE__; return retval; } while(0)
 #define BD_MSG(bd,...)  if(!bd->quiet) { printf(__VA_ARGS__); printf("\n"); }
 #define SIZE_ARRAY(x)   (sizeof(x)/sizeof(*x))
 
@@ -208,7 +207,7 @@ static char *static_ld(BuildList type, char *options, char *name, char *ofiles, 
 static void prj_print(Bd *bd, Prj *p, bool simple);
 static StrArr *strarr_new();
 static void strarr_free(StrArr *arr);
-static void strarr_set_n(StrArr *arr, int n);
+static bool strarr_set_n(StrArr *arr, int n);
 static int str_append(char **str, char *format, ...);
 static StrArr *parse_pipe(Bd *bd, char *cmd);
 static StrArr *parse_dfile(Bd *bd, char *dfile);
@@ -245,9 +244,9 @@ static char *static_cc(BuildList type, char *flags, char *ofile, char *cfile)
 {
     switch(type) {
         case BUILD_APP      : ;
-        case BUILD_EXAMPLES : return strprf("gcc -c -MMD -MP %s -D%s -o %s %s", flags ? flags : "", OS_DEF, ofile, cfile);
-        case BUILD_STATIC   : return strprf("gcc -c -MMD -MP %s -D%s -o %s %s", flags ? flags : "", OS_DEF, ofile, cfile);
-        case BUILD_SHARED   : return strprf("gcc -c -MMD -MP -fPIC -D%s %s -o %s %s", flags ? flags : "", OS_DEF, ofile, cfile);
+        case BUILD_EXAMPLES : return strprf("gcc -c -MMD -MP %s%s-D%s -o %s %s", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
+        case BUILD_STATIC   : return strprf("gcc -c -MMD -MP %s%s-D%s -o %s %s", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
+        case BUILD_SHARED   : return strprf("gcc -c -MMD -MP -fPIC -D%s%s%s -o %s %s", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
         default             : return 0;
     }
 }
@@ -255,9 +254,9 @@ static char *static_ld(BuildList type, char *options, char *name, char *ofiles, 
 {
     switch(type) {
         case BUILD_APP      : ;
-        case BUILD_EXAMPLES : return strprf("gcc %s -o %s %s %s", options ? options : "", name, ofiles, libstuff ? libstuff : "");
+        case BUILD_EXAMPLES : return strprf("gcc %s%s-o %s %s %s", options ? options : "", options ? " " : "", name, ofiles, libstuff ? libstuff : "");
         case BUILD_STATIC   : return strprf("ar rcs %s%s %s", name, static_ext[type], ofiles);
-        case BUILD_SHARED   : return strprf("gcc -shared -fPIC %s -o %s%s %s %s", options ? options : "", name, static_ext[type], ofiles, libstuff ? libstuff : "");
+        case BUILD_SHARED   : return strprf("gcc -shared -fPIC %s%s-o %s%s %s %s", options ? options : "", options ? " " : "", name, static_ext[type], ofiles, libstuff ? libstuff : "");
         default             : return 0;
     }
 }
@@ -271,10 +270,11 @@ static void prj_print(Bd *bd, Prj *p, bool simple) /* TODO list if they're up to
         for(int k = 0; k < p->srcf.n; k++) {
             char *cmd = strprf(FIND(p->srcf.s[k]));
             StrArr *res = parse_pipe(bd, cmd);
+            if(!res) BD_ERR(bd,, "Pipe returned nothing");
             for(int i = 0; i < res->n; i++) {
                 int ext = strrstrn(res->s[i], ".c");
                 int dir = strrstrn(res->s[i], SLASH_STR);
-                char *name = strprf("%.*s", ext - dir - 1, &res->s[i][dir + 1]); /* TODO dangerous ?! */
+                char *name = strprf("%.*s", ext - dir - 1, &res->s[i][dir + 1]);
                 printf("%-7s : [%s]\n", static_build_str[p->type], name);
                 free(name);
             }
@@ -307,15 +307,16 @@ static void strarr_free(StrArr *arr)
     arr->n = 0;
 }
 
-static void strarr_set_n(StrArr *arr, int n)
+static bool strarr_set_n(StrArr *arr, int n)
 {
-    if(!arr || !n) return;
-    if(arr->n == n) return;
+    if(!arr || !n) return false;
+    if(arr->n == n) return true;
     void *temp = realloc(arr->s, sizeof(*arr->s) * (n));
-    if(!temp) return;
+    if(!temp) return false;
     arr->s = temp;
     memset(&arr->s[arr->n], 0, sizeof(*arr->s) * (n - arr->n));
     arr->n = n;
+    return true;
 }
 
 static int str_append(char **str, char *format, ...)
@@ -346,10 +347,7 @@ static int str_append(char **str, char *format, ...)
 static StrArr *parse_pipe(Bd *bd, char *cmd)
 {
     FILE *fp = popen(cmd, "rb");
-    if(!fp) {
-        BD_ERR(bd, "Could not open pipe");
-        return 0;
-    }
+    if(!fp) BD_ERR(bd, 0, "Could not open pipe");
 
     // printf("[[%s]]\n", cmd);
     StrArr *result = strarr_new();
@@ -359,16 +357,13 @@ static StrArr *parse_pipe(Bd *bd, char *cmd)
     while(c != EOF) {
         if(c == '\n') n++;
         else if(c != '\r') {
-            strarr_set_n(result, n);
+            if(!strarr_set_n(result, n)) BD_ERR(bd, 0, "Failed to modify StrArr");
             str_append(&result->s[result->n - 1], "%c", c);
         }
         c = fgetc(fp);
     }
 
-    if(pclose(fp)) {
-        BD_ERR(bd, "Could not close pipe");
-        return 0;
-    }
+    if(pclose(fp)) BD_ERR(bd, 0, "Could not close pipe");
     return result;
 }
 
@@ -395,16 +390,13 @@ static StrArr *parse_dfile(Bd *bd, char *dfile)
         if(c == '\n') n++;
         else if(c == ':') fgetc(fp);
         else {
-            strarr_set_n(result, n);
+            if(!strarr_set_n(result, n)) BD_ERR(bd, 0, "Failed to modify StrArr");
             str_append(&result->s[result->n - 1], "%c", c);
         }
         c = fgetc(fp);
     }
 
-    if(fclose(fp)) {
-        BD_ERR(bd, "Could not close dfile");
-        return 0;
-    }
+    if(fclose(fp)) BD_ERR(bd, 0, "Could not close dfile");
     return result;
 }
 
@@ -425,15 +417,14 @@ static uint64_t modtime(Bd *bd, const char *filename)
     if(filehandle == INVALID_HANDLE_VALUE) {
         DWORD lasterr = GetLastError();
         if(lasterr != ERROR_FILE_NOT_FOUND && lasterr != ERROR_PATH_NOT_FOUND) {
-            BD_ERR(bd, "%s: Failed to get handle (code %ld)", filename, lasterr);
+            BD_ERR(bd, 0, "%s: Failed to get handle (code %ld)", filename, lasterr);
         }
         return 0;
     }
     FILETIME t;
     BOOL gottime = GetFileTime(filehandle, 0, 0, &t);
     if(!gottime) {
-        BD_ERR(bd, "%s: Failed to retrieve time information (code %ld)", filename, GetLastError());
-        return 0;
+        BD_ERR(bd, 0, "%s: Failed to retrieve time information (code %ld)", filename, GetLastError());
     }
     CloseHandle(filehandle);
     ULARGE_INTEGER result = {.HighPart = t.dwHighDateTime, .LowPart = t.dwLowDateTime};
@@ -459,8 +450,8 @@ static uint64_t modlibs(Bd *bd, char *llibs)
         lpath += 3; /* "-L=" */
         char *space = memchr(lpath, ' ', llibs + llibs_len - lpath);
         space = space ? space : lpath + llibs_len;
-        strarr_set_n(lpaths, lpaths->n + 1);
-        lpaths->s[lpaths->n - 1] = strprf("%.*s", (int)(space - lpath), lpath); /* TODO risky, check return val */
+        if(!strarr_set_n(lpaths, lpaths->n + 1)) BD_ERR(bd, 0, "Failed to modify StrArr");
+        lpaths->s[lpaths->n - 1] = strprf("%.*s", (int)(space - lpath), lpath);
         lpath = space + 1;
     }
     /* filter out names (-l= flag)*/
@@ -472,8 +463,8 @@ static uint64_t modlibs(Bd *bd, char *llibs)
         lname += 3; /* "-l= "*/
         char *space = memchr(lname, ' ', llibs + llibs_len - lname);
         space = space ? space : lpath + llibs_len;
-        strarr_set_n(lnames, lnames->n + 1);
-        lnames->s[lnames->n - 1] = strprf("%.*s", (int)(space - lname), lname); /* TODO risky, check return val */
+        if(!strarr_set_n(lnames, lnames->n + 1)) BD_ERR(bd, 0, "Failed to modify StrArr");
+        lnames->s[lnames->n - 1] = strprf("%.*s", (int)(space - lname), lname);
         lpath = space + 1;
     }
     /* check if library changed */
@@ -507,7 +498,7 @@ static void makedir(const char *dirname)
 static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf)
 {
     char *cc = static_cc(p->type, p->cflgs, objf, srcf);
-    strarr_set_n(&bd->ofiles, bd->ofiles.n + 1);
+    if(!strarr_set_n(&bd->ofiles, bd->ofiles.n + 1)) BD_ERR(bd,, "Failed to modify StrArr");
     str_append(&bd->ofiles.s[bd->ofiles.n - 1], objf);
     BD_MSG(bd, "[\033[96m%s\033[0m] %s", name, cc); /* bright cyan color */
     bd->error = system(cc);
@@ -520,7 +511,7 @@ static void link(Bd *bd, Prj *p, char *name)
     if(bd->ofiles.n) {
         /* link */
         char *ofiles = 0;
-        for(int i = 0; i < bd->ofiles.n; i++) str_append(&ofiles, "%s ", bd->ofiles.s[i]);
+        for(int i = 0; i < bd->ofiles.n; i++) str_append(&ofiles, "%s%s", bd->ofiles.s[i], i + 1 < bd->ofiles.n ? " " : "");
         char *ld = static_ld(p->type, p->lopts, name, ofiles, p->llibs);
         BD_MSG(bd, "[\033[93m%s\033[0m] %s", name, ld); /* bright yellow color*/
         bd->error = system(ld);
@@ -549,6 +540,7 @@ static void build(Bd *bd, Prj *p)
     for(int k = 0; k < p->srcf.n && !bd->error; k++) {
         char *cmd = strprf(FIND(p->srcf.s[k]));
         StrArr *res = parse_pipe(bd, cmd);
+        if(!res) BD_ERR(bd,, "Pipe returned nothing");
         for(int i = 0; i < res->n; i++) {
             int ext = strrstrn(res->s[i], ".c");
             int dir = strrstrn(res->s[i], SLASH_STR);
@@ -579,8 +571,8 @@ static void build(Bd *bd, Prj *p)
                         break;
                     }
                     else if(newlink) { /* TODO IMPORTANT is this condition really, REALLY correct????... _maybe_ it is now....? */
-                        strarr_set_n(&bd->ofiles, bd->ofiles.n + 1);
-                        bd->ofiles.s[bd->ofiles.n - 1] = strprf("%s", objf); /* TODO dangerous ?! add return value check */
+                        if(!strarr_set_n(&bd->ofiles, bd->ofiles.n + 1)) BD_ERR(bd,, "Failed to modify StrArr");
+                        bd->ofiles.s[bd->ofiles.n - 1] = strprf("%s", objf);
                         break;
                     }
                 }
@@ -616,10 +608,11 @@ static void clean(Bd *bd, Prj *p)
         for(int k = 0; k < p->srcf.n && !bd->error; k++) {
             char *cmd = strprf(FIND(p->srcf.s[k]));
             StrArr *res = parse_pipe(bd, cmd);
+            if(!res) BD_ERR(bd,, "Pipe returned nothing");
             for(int i = 0; i < res->n; i++) {
                 int ext = strrstrn(res->s[i], ".c");
                 int dir = strrstrn(res->s[i], SLASH_STR);
-                char *name = strprf("%.*s", ext - dir - 1, &res->s[i][dir + 1]); /* TODO dangerous ?! */
+                char *name = strprf("%.*s", ext - dir - 1, &res->s[i][dir + 1]);
                 char *appstr = strprf("%s%s ", name, static_ext[p->type]);
                 str_append(&exes, "%s", appstr);
                 free(name);
@@ -692,6 +685,8 @@ static void bd_execute(Bd *bd, CmdList cmd)
         default: break;
     }
 }
+
+/* TODO create any missing paths on the fly */
 
 /* start of program */
 int main(int argc, const char **argv)
