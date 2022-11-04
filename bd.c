@@ -156,7 +156,6 @@ static const char *cmdsinfo[CMD__COUNT] = {
 
 typedef struct {
     StrArr ofiles;
-    int cutoff;
     int error;
     int count;
     bool quiet;
@@ -222,7 +221,7 @@ static void clean(Bd *bd, Prj *p);
 static void bd_execute(Bd *bd, CmdList cmd);
 static StrArr *prj_names(Bd *bd, Prj *p, StrArr *srcfs);
 static StrArr *prj_srcfs(Bd *bd, Prj *p);
-static StrArr *prj_srcfs_chg_dirext(Bd *bd, Prj *p, StrArr *srcfs, char *new_dir, char *new_ext);
+static StrArr *prj_srcfs_chg_dirext(Bd *bd, StrArr *srcfs, char *new_dir, char *new_ext);
 
 /* function implementations */
 static char *strprf(char *str, char *format, ...)
@@ -281,9 +280,9 @@ static void prj_print(Bd *bd, Prj *p, bool simple) /* TODO list if they're up to
     /* gather files */
     StrArr *srcfs = prj_srcfs(bd, p);
     if(!srcfs) BD_ERR(bd,, "No source files");
-    StrArr *objfs = prj_srcfs_chg_dirext(bd, p, srcfs, p->objd, ".o");
+    StrArr *objfs = prj_srcfs_chg_dirext(bd, srcfs, p->objd, ".o");
     if(!objfs) BD_ERR(bd,, "No object files");
-    StrArr *depfs = prj_srcfs_chg_dirext(bd, p, srcfs, p->objd, ".d");
+    StrArr *depfs = prj_srcfs_chg_dirext(bd, srcfs, p->objd, ".d");
     if(!depfs) BD_ERR(bd,, "No dependency files");
     StrArr *targets = prj_names(bd, p, srcfs);
     if(!targets) BD_ERR(bd,, "No targets");
@@ -436,7 +435,7 @@ static uint64_t modlibs(Bd *bd, char *llibs)
     /* extract paths / names from llibs */
     char *find[] = {"-L", "-l"};
     StrArr *arr_Ll[] = {strarr_new(), strarr_new()};
-    for(int i = 0; i < SIZE_ARRAY(arr_Ll); i++) {
+    for(int i = 0; i < (int)SIZE_ARRAY(arr_Ll); i++) {
         char *search = llibs;
         if(!arr_Ll[i]) BD_ERR(bd, 0, "Failed to create string array");
         while(*search) {
@@ -463,7 +462,7 @@ static uint64_t modlibs(Bd *bd, char *llibs)
         }
     }
     /* free all used arrs */
-    for(int i = 0; i < SIZE_ARRAY(arr_Ll); i++) {
+    for(int i = 0; i < (int)SIZE_ARRAY(arr_Ll); i++) {
         strarr_free(arr_Ll[i]);
         free(arr_Ll[i]);
     }
@@ -538,9 +537,9 @@ static void build(Bd *bd, Prj *p)
     if(!diro) BD_ERR(bd,, "Failed to get directories from objd");
     StrArr *srcfs = prj_srcfs(bd, p);
     if(!srcfs) BD_ERR(bd,, "No source files");
-    StrArr *objfs = prj_srcfs_chg_dirext(bd, p, srcfs, p->objd, ".o");
+    StrArr *objfs = prj_srcfs_chg_dirext(bd, srcfs, p->objd, ".o");
     if(!objfs) BD_ERR(bd,, "No object files");
-    StrArr *depfs = prj_srcfs_chg_dirext(bd, p, srcfs, p->objd, ".d");
+    StrArr *depfs = prj_srcfs_chg_dirext(bd, srcfs, p->objd, ".d");
     if(!depfs) BD_ERR(bd,, "No dependency files");
     StrArr *targets = prj_names(bd, p, srcfs);
     if(!targets) BD_ERR(bd,, "No targets to build");
@@ -636,7 +635,7 @@ static StrArr *prj_names(Bd *bd, Prj *p, StrArr *srcfs)
     }
     return result;
 }
-static StrArr *prj_srcfs_chg_dirext(Bd *bd, Prj *p, StrArr *srcfs, char *new_dir, char *new_ext)
+static StrArr *prj_srcfs_chg_dirext(Bd *bd, StrArr *srcfs, char *new_dir, char *new_ext)
 {
     StrArr *result = strarr_new();
     if(!result) BD_ERR(bd, 0, "Failed to create StrArr");
@@ -646,11 +645,6 @@ static StrArr *prj_srcfs_chg_dirext(Bd *bd, Prj *p, StrArr *srcfs, char *new_dir
         int slash = strrstrn(srcfs->s[i], SLASH_STR);
         result->s[i] = strprf(0, "%s%s%.*s%s", new_dir, SLASH_STR, ext - slash - 1, &srcfs->s[i][slash + 1], new_ext);
     }
-    return result;
-}
-static char *path2thing(Bd *bd, Prj *p, char *thing, bool reverse)
-{
-    char *result = 0;
     return result;
 }
 
@@ -672,9 +666,9 @@ static void clean(Bd *bd, Prj *p)
     if(!diro) BD_ERR(bd,, "Failed to get directories from objd");
     StrArr *srcfs = prj_srcfs(bd, p);
     if(!srcfs) BD_ERR(bd,, "No source files");
-    StrArr *objfs = prj_srcfs_chg_dirext(bd, p, srcfs, p->objd, ".o");
+    StrArr *objfs = prj_srcfs_chg_dirext(bd, srcfs, p->objd, ".o");
     if(!objfs) BD_ERR(bd,, "No object files");
-    StrArr *depfs = prj_srcfs_chg_dirext(bd, p, srcfs, p->objd, ".d");
+    StrArr *depfs = prj_srcfs_chg_dirext(bd, srcfs, p->objd, ".d");
     if(!depfs) BD_ERR(bd,, "No dependency files");
     StrArr *targets = prj_names(bd, p, srcfs);
     if(!targets) BD_ERR(bd,, "No targets to build");
@@ -728,19 +722,19 @@ static void bd_execute(Bd *bd, CmdList cmd)
 
     switch(cmd) {
         case CMD_BUILD: {
-            for(int i = 0; i < SIZE_ARRAY(p); i++) build(bd, &p[i]);
+            for(int i = 0; i < (int)SIZE_ARRAY(p); i++) build(bd, &p[i]);
             bd->done = true;
         } break;
         case CMD_CLEAN: {
-            for(int i = 0; i < SIZE_ARRAY(p); i++) clean(bd, &p[i]);
+            for(int i = 0; i < (int)SIZE_ARRAY(p); i++) clean(bd, &p[i]);
             bd->done = true;
         } break;
         case CMD_LIST: {
-            for(int i = 0; i < SIZE_ARRAY(p); i++) prj_print(bd, &p[i], true);
+            for(int i = 0; i < (int)SIZE_ARRAY(p); i++) prj_print(bd, &p[i], true);
             bd->done = true;
         } break;
         case CMD_CONFIG: {
-            for(int i = 0; i < SIZE_ARRAY(p); i++) prj_print(bd, &p[i], false);
+            for(int i = 0; i < (int)SIZE_ARRAY(p); i++) prj_print(bd, &p[i], false);
             bd->done = true;
         } break;
         case CMD_OS: {
@@ -769,10 +763,6 @@ static void bd_execute(Bd *bd, CmdList cmd)
 int main(int argc, const char **argv)
 {
     Bd bd = {0};
-
-    /* create base directory */
-    bd.cutoff = strrstrn(argv[0], SLASH_STR);
-    bd.cutoff = bd.cutoff ? bd.cutoff + 1 : 0;
     /* go over command line args */
     for(int i = 1; i < argc; i++) {
         for(CmdList j = 0; j < CMD__COUNT; j++) {
