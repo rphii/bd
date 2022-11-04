@@ -351,7 +351,7 @@ static StrArr *parse_pipe(Bd *bd, char *cmd)
     }
 
     if(pclose(fp)) BD_ERR(bd, 0, "Could not close pipe");
-    if(!result->n) {    /* TODO check other functions that use `strarr_new()` to also return 0 when empty... */
+    if(!result->n) {    /* TODO check other functions that use `strarr_new()` to maybe also return 0 when empty... */
         free(result);
         result = 0;
     }
@@ -473,13 +473,13 @@ static uint64_t modlibs(Bd *bd, char *llibs)
 static void makedir(const char *dirname)
 {
 #if defined(OS_WIN)
-   // TODO make quiet (somehow it is?! or isn't?! idk)
+   /* TODO is this quiet?! if not make it quiet */
    mkdir(dirname);
 #elif defined(OS_CYGWIN)
    mkdir(dirname, 0700);
 #endif
 }
-/* TODO FIX */
+
 static StrArr *extract_dirs(Bd *bd, char *path, bool skiplast)
 {
     StrArr *result = strarr_new();
@@ -531,7 +531,6 @@ static void build(Bd *bd, Prj *p)
     if(bd->error) return;
     /* get most recent modified time of any included library */
     uint64_t m_llibs = modlibs(bd, p->llibs);
-    /* TODO repair this....!!! */
     /* gather all files */
     StrArr *dirn = extract_dirs(bd, p->name, true);
     if(!dirn) BD_ERR(bd,, "Failed to get directories from name");
@@ -762,19 +761,14 @@ static void bd_execute(Bd *bd, CmdList cmd)
     }
 }
 
-/* TODO create any missing paths on the fly */
 /* TODO fix the constant ".c", ".h", ".d" (last one prob. not) to be changeable... */
-/* TODO fix the compiler being constsnt "gcc" (no g++ ?????)*/
-/* TODO multithreading */
+/* TODO fix the compiler being constant "gcc" (no g++ ?????)*/
+/* TODO maybe add multithreading */
 
 /* start of program */
 int main(int argc, const char **argv)
 {
     Bd bd = {0};
-
-    // StrArr *res = extract_dirs(&bd, "test/lol/what/", false);
-    // for(int i = 0; i < res->n; i++) printf("DIR %s\n", res->s[i]);
-    // return 0;
 
     /* create base directory */
     bd.cutoff = strrstrn(argv[0], SLASH_STR);
