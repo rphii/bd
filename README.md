@@ -28,7 +28,7 @@ Modify the template project or add multiple ones. See https://github.com/rphii/R
 ### Name of the project (`Prj::name`)
 String of your output file (without extension).
 - **If you're building a library**, precede the name with `lib`.
-- If you're building examples, the name is ignored, instead it create the name based off the specified file(s).
+- If you're building examples, the name is treated like a folder name.
 ### Object directory (`Prj::objd`)
 In this folder all the object (`.o`) and dependency (`.d`) files will be dumped. This folder will be deleted **entirely** when cleaning.
 ### Source files (`Prj::srcf`)
@@ -42,3 +42,5 @@ String with your own linker libraries. **Precede paths** with the `-L=` flag and
 
 ## General Notice
 - Don't have any spaces in any of the files having any business with this build tool
+- If you use subfolders in a string, always use `/` and not `\`
+- Among others, `Prj::name` and `Prj::obj` can be a sequence of subfolders
