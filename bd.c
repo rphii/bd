@@ -108,10 +108,9 @@ SOFTWARE. */
 
 /* start of globbing pattern */
 #if defined(OS_WIN)
-    #define FIND(p) "cmd /V /C \"set \"var= %s\" && set \"var=!var:/=\\!\" && for %%I in (!var!) do @echo %%~dpnxI\"", p
+    #define FIND(p) "cmd /V /C \"@echo off && setlocal enabledelayedexpansion && set \"var= %s\" && set \"var=!var:/=\\!\" && for %%I in (!var!) do set \"file=%%~dpnxI\" && set \"file=!file:%%cd%%\\=!\" && @echo !file!\"", p
 #elif defined(OS_CYGWIN)
     #define FIND(p) "find $(dirname \"%s\") -maxdepth 1 -type f -name \"$(basename \"%s\")\"", p, p
-    // #define FIND(p) "find ~+/$(dirname \"%s\") -maxdepth 1 -type f -name $(basename \"%s\")", p, p
 #endif
 /* end of globbing pattern */
 
@@ -560,7 +559,6 @@ static void build(Bd *bd, Prj *p)
         for(int i = 0; i < res->n; i++) {
             int ext = strrstrn(res->s[i], ".c");
             int dir = strrstrn(res->s[i], SLASH_STR);
-            // int len = strlen(res->s[i]);
             char *name = 0;
             if(p->type != BUILD_EXAMPLES) {
                 name = p->name;
@@ -572,7 +570,6 @@ static void build(Bd *bd, Prj *p)
                 newlink = (modl > moda);
                 free(appstr);
             }
-            // char *srcf = strprf("%.*s", len - bd->cutoff - 1, &res->s[i][bd->cutoff]);  /* TODO dangerous ?! */
             char *srcf = res->s[i];
             char *objf = strprf("%s%.*s.o", p->objd, ext - dir, &res->s[i][dir]);
             char *dfile = strprf("%s%.*s.d", p->objd, ext - dir, &res->s[i][dir]);
@@ -588,26 +585,25 @@ static void build(Bd *bd, Prj *p)
                         compile(bd, p, name, objf, srcf);
                         break;
                     }
+                    else if(newlink) { /* TODO IMPORTANT is this condition really, REALLY correct????... _maybe_ it is now....? */
+                        strarr_set_n(&bd->ofiles, bd->ofiles.n + 1);
+                        bd->ofiles.s[bd->ofiles.n - 1] = strprf("%s", objf); /* TODO dangerous ?! add return value check */
+                        break;
+                    }
                 }
                 strarr_free(hfiles);
                 free(hfiles);
+                
             } else {
                 compile(bd, p, name, objf, srcf);
             }
 
-            if(newlink && !bd->ofiles.n) { /* TODO IMPORTANT is this condition really, REALLY correct???? */
-                strarr_set_n(&bd->ofiles, bd->ofiles.n + 1);
-                bd->ofiles.s[bd->ofiles.n - 1] = strprf("%s", objf); /* TODO dangerous ?! add return value check */
-            }
 
             if(p->type == BUILD_EXAMPLES) {
                 link(bd, p, name);
                 free(name);
             }
 
-            // printf("%2s%s\n", "", res->s[i]);
-            // printf("%2s%s%.*s.o\n", "", p->objd, ext - dir, &res->s[i][dir]);
-            // free(srcf);
             free(objf);
             free(dfile);
         }
