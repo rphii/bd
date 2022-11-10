@@ -420,7 +420,7 @@ static uint64_t modtime(Bd *bd, const char *filename)
     return result.QuadPart;
 #elif defined(OS_CYGWIN) || defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
     struct stat attr;
-    if(stat(filename, &attr) == -1) return 0;
+    if(stat(filename, &attr) == -1) BD_ERR(bd, 0, "%s: Failed to get stat", filename);
     return (uint64_t)attr.st_ctime;
 #endif
 }
@@ -678,9 +678,11 @@ static void clean(Bd *bd, Prj *p)
         delfiles = strprf(delfiles, noerr);
         delfolds = strprf(delfolds, noerr);
         BD_MSG(bd, "[\033[95m%s\033[0m] %s", targets->s[k], delfiles); /* bright magenta */
-        system(delfiles);
+        int sysret = system(delfiles);
+        if(sysret == -1) BD_ERR(bd,, "System failed deleting files");
         BD_MSG(bd, "[\033[95m%s\033[0m] %s", targets->s[k], delfolds); /* bright magenta */
-        system(delfolds);
+        sysret = system(delfolds);
+        if(sysret == -1) BD_ERR(bd,, "System failed deleting folders");
         free(delfiles);
         free(delfolds);
     }
