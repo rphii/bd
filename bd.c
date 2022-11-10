@@ -289,7 +289,7 @@ static void prj_print(Bd *bd, Prj *p, bool simple) /* TODO list if they're up to
     if(!targets) BD_ERR(bd,, "No targets");
 
     /* print all names */
-    for(int i = 0; i < targets->n; i++) printf("%-7s : [\033[1m%s\033[0m]\n", static_build_str[p->type], targets->s[i]);
+    for(int i = 0; i < targets->n; i++) printf("%-7s : [ \033[1m%s\033[0m ]\n", static_build_str[p->type], targets->s[i]);
     strarr_free_p(srcfs);
     strarr_free_p(targets);
     if(simple) return;
@@ -505,7 +505,7 @@ static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf)
     char *cc = static_cc(p->type, p->cc, p->cflgs, objf, srcf);
     if(!strarr_set_n(&bd->ofiles, bd->ofiles.n + 1)) BD_ERR(bd,, "Failed to modify StrArr");
     bd->ofiles.s[bd->ofiles.n - 1] = strprf(bd->ofiles.s[bd->ofiles.n - 1], objf);
-    BD_MSG(bd, "[\033[94;1m%s\033[0m] %s", name, cc); /* bright blue color */
+    BD_MSG(bd, "[ \033[94;1m%s\033[0m ] %s", name, cc); /* bright blue color */
     bd->error = system(cc);
     free(cc);
 }
@@ -518,13 +518,13 @@ static void link(Bd *bd, Prj *p, char *name)
         char *ofiles = 0;
         for(int i = 0; i < bd->ofiles.n; i++) ofiles = strprf(ofiles, "%s%s", bd->ofiles.s[i], i + 1 < bd->ofiles.n ? " " : "");
         char *ld = static_ld(p->type, p->cc, p->lopts, name, ofiles, p->llibs);
-        BD_MSG(bd, "[\033[93;1m%s\033[0m] %s", name, ld); /* bright yellow color*/
+        BD_MSG(bd, "[ \033[93;1m%s\033[0m ] %s", name, ld); /* bright yellow color*/
         bd->error = system(ld);
         free(ofiles);
         free(ld);
         strarr_free(&bd->ofiles);
     } else {
-        BD_MSG(bd, "[\033[92;1m%s\033[0m] is up to date", name); /* bright green color */
+        BD_MSG(bd, "[ \033[92;1m%s\033[0m ] is up to date", name); /* bright green color */
     }
 }
 
@@ -684,10 +684,10 @@ static void clean(Bd *bd, Prj *p)
         /* now delete */
         delfiles = strprf(delfiles, noerr);
         delfolds = strprf(delfolds, noerr);
-        BD_MSG(bd, "[\033[95;1m%s\033[0m] %s", targets->s[k], delfiles); /* bright magenta */
+        BD_MSG(bd, "[ \033[95;1m%s\033[0m ] %s", targets->s[k], delfiles); /* bright magenta */
         int sysret = system(delfiles);
         if(sysret == -1) BD_ERR(bd,, "System failed deleting files");
-        BD_MSG(bd, "[\033[95;1m%s\033[0m] %s", targets->s[k], delfolds); /* bright magenta */
+        BD_MSG(bd, "[ \033[95;1m%s\033[0m ] %s", targets->s[k], delfolds); /* bright magenta */
         sysret = system(delfolds);
         if(sysret == -1) BD_ERR(bd,, "System failed deleting folders");
         free(delfiles);
