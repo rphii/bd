@@ -102,7 +102,7 @@ SOFTWARE. */
 #if defined(OS_WIN)
     #define FIND(p) "cmd /V /C \"@echo off && setlocal enabledelayedexpansion && set \"var= %s\" && set \"var=!var:/=\\!\" && for %%I in (!var!) do set \"file=%%~dpnxI\" && set \"file=!file:%%cd%%\\=!\" && @echo !file!\"", p
 #elif defined(OS_CYGWIN) || defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
-    #define FIND(p) "find $(dirname \"%s\") -maxdepth 1 -type f -name \"$(basename \"%s\")\"", p, p
+    #define FIND(p) "find \"$(dirname \"%s\")\" -maxdepth 1 -type f -name \"$(basename \"%s\")\"", p, p
 #endif
 /* end of globbing pattern */
 
@@ -294,6 +294,7 @@ static void prj_print(Bd *bd, Prj *p, bool simple) /* TODO list if they're up to
     strarr_free_p(targets);
     if(simple) return;
     /* print the configuration */
+    printf("  cc    = %s\n", p->cc);
     printf("  cflgs = %s\n", p->cflgs);
     printf("  lopts = %s\n", p->lopts);
     printf("  llibs = %s\n", p->llibs);
