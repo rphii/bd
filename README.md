@@ -2,7 +2,7 @@
 Simple (to use), one-file build tool for C projects.
 
 ## What does it do?
-- It's a simple build tool for C projects
+- It's a simple build tool for C or C++ projects
 - Its instructions on what to build are directly stored within the source code itself, making it compact
 - You can choose between four different [build types](#types-of-projects-prjtype)
 - It makes sure to recompile a file if their dependency (either header file or library) was modified
@@ -51,7 +51,7 @@ String with your own linker libraries.
 ### C compiler (`Prj::cc`)
 String specifying compiler to use.
 - If it's `null` it defaults to `gcc`
-- Set it to `g++` to compile c++ programs
+- Set it to `g++` to compile C++ programs
 - Or alternatively use any compiler of your choice
 
 ## Tested platforms
