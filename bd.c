@@ -623,7 +623,7 @@ static StrArr *prj_names(Bd *bd, Prj *p, StrArr *srcfs)
     /* only if we're not dealing with examples, the name is simple */
     if(p->type != BUILD_EXAMPLES) {
         if(!strarr_set_n(result, result->n + 1)) BD_ERR(bd, 0, "Failed to modify StrArr");
-        result->s[result->n - 1] = strprf(0, "%s", p->name);
+        result->s[result->n - 1] = strprf(0, "%s", p->name ? p->name : "a");
     } else {
         for(int i = 0; i < srcfs->n; i++) {
             int ext = strrstrn(srcfs->s[i], ".");
