@@ -1,8 +1,8 @@
 # BD
-Simple (to use), one-file **b**uil**d** tool for C projects.
+Simple (to use), one-file **b**uil**d** tool for C/C++ projects.
 
 ## What does it do?
-- It's a simple build tool for C or C++ projects
+- It's a simple build tool for C/C++ projects
 - Its instructions on what to build are directly stored within the source code itself, making it compact
 - You can choose between four different [build types](#types-of-projects-prjtype)
 - It makes sure to recompile a file if their dependency (either header file or library) was modified
