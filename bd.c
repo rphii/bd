@@ -376,16 +376,19 @@ static StrArr *parse_dfile(Bd *bd, char *dfile)
     }
     c = fgetc(fp);
     /* read in the required files */
-    int n = 1;
+    int n = 0;
     while(c != EOF) {
         if(c == '\n') n++;
         else if(c == ':') fgetc(fp);
         else {
+            if(!n) n = 1;
             if(!strarr_set_n(result, n)) BD_ERR(bd, 0, "Failed to modify StrArr");
             result->s[result->n - 1] = strprf(result->s[result->n - 1], "%c", c);
         }
         c = fgetc(fp);
     }
+
+    if(!result->n) strarr_free_p(result);
 
     if(fclose(fp)) BD_ERR(bd, 0, "Could not close dfile");
     return result;
