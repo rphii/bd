@@ -331,7 +331,7 @@ static bool strarr_set_n(StrArr *arr, int n)
 
 static bool parse_pipe(Bd *bd, char *cmd, StrArr **result)
 {
-    FILE *fp = popen(cmd, "rb");
+    FILE *fp = popen(cmd, "r");
     if(!fp) BD_ERR(bd, false, "Could not open pipe");
 
     if(!*result) *result = strarr_new();
