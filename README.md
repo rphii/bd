@@ -89,7 +89,7 @@ Prj p[] = {{
 ## Tested platforms
 - Windows
 - Cygwin
-- (...the rest is missing some implementations/verification...)
+- (...missing verification for the rest...)
 
 ## General Notice
 - Don't have any spaces in any of the files having any business with this build tool
@@ -97,6 +97,5 @@ Prj p[] = {{
 - Among others, `Prj::name` and `Prj::obj` can be a sequence of subfolders
 
 ## Planned
-- support for c++
 - maybe multithreading
-- make all platforms be able to use this
+- verify if it works other platforms
