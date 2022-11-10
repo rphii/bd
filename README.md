@@ -36,6 +36,7 @@ Modify the template project (first instruction in `bd_execute`) or add multiple 
 String of your output file (without extension).
 - **If you're building a library**, precede the name with `lib`
 - If you're building examples, the name is treated as a folder name instead
+- For applications, if it's `null` it defaults to `a`
 ### Object directory (`Prj::objd`)
 In this folder all the object (`.o`) and dependency (`.d`) files will be dumped.
 ### Source files (`Prj::srcf`)
@@ -81,7 +82,6 @@ Prj p[] = {{
 ### C
 ```c
 Prj p[] = {{
-    .name = "app_name",
     .srcf = D("main.c"),
 }};
 ```
