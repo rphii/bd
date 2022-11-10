@@ -33,24 +33,22 @@ SOFTWARE. */
 
 /* start of os detection */
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
-    // define something for Windows (32-bit and 64-bit, this part is common)
+    /* define something for Windows (32-bit and 64-bit, this part is common) */
     #define OS_STR "Windows"
     #define OS_DEF "OS_WIN"
     #define OS_WIN
     #define SLASH_STR   "\\"
-    #define SLASH_CH    '\\'
     #ifdef _WIN64
     #include "windows.h"
     #include "fileapi.h"
     #include "errhandlingapi.h"
-        // define something for Windows (64-bit only)
+        /* define something for Windows (64-bit only) */
     #else
-        // define something for Windows (32-bit only)
+        /* define something for Windows (32-bit only) */
     #endif
 #else
     /* common things by all others */
     #define SLASH_STR   "/"
-    #define SLASH_CH    '/'
 #endif
 #if defined(OS_WIN)
 #elif defined(__CYGWIN__)
@@ -63,46 +61,46 @@ SOFTWARE. */
     #define OS_APPLE
     #include <TargetConditionals.h>
     #if TARGET_IPHONE_SIMULATOR
-         // iOS, tvOS, or watchOS Simulator
+         /* iOS, tvOS, or watchOS Simulator */
     #elif TARGET_OS_MACCATALYST
-         // Mac's Catalyst (ports iOS API into Mac, like UIKit).
+         /* Mac's Catalyst (ports iOS API into Mac, like UIKit). */
     #elif TARGET_OS_IPHONE
-        // iOS, tvOS, or watchOS device
+        /* iOS, tvOS, or watchOS device */
     #elif TARGET_OS_MAC
-        // Other kinds of Apple platforms
+        /* Other kinds of Apple platforms */
     #else
-    #   error "Unknown Apple platform"
+    #error "Unknown Apple platform"
     #endif
 #elif __ANDROID__
     #define OS_STR "Android"
     #define OS_DEF "OS_ANDROID"
     #define OS_ANDROID
-    // Below __linux__ check should be enough to handle Android,
-    // but something may be unique to Android.
+    /* Below __linux__ check should be enough to handle Android, */
+    /* but something may be unique to Android. */
 #elif __linux__
     #define OS_STR "Linux"
     #define OS_DEF "OS_LINUX"
     #define OS_LINUX
-    // linux
-#elif __unix__ // all unices not caught above
+    /* linux */
+#elif __unix__ /* all unices not caught above */
     #define OS_STR "Unix"
     #define OS_DEF "OS_UNIX"
     #define OS_UNIX
-    // Unix
+    /* Unix */
 #elif defined(_POSIX_VERSION)
     #define OS_STR "Posix"
     #define OS_DEF "OS_POSIX"
     #define OS_POSIX
-    // POSIX
+    /* POSIX */
 #else
-#   error "Unknown compiler"
+#error "Unknown compiler"
 #endif
 /* end of os detection */
 
 /* start of globbing pattern */
 #if defined(OS_WIN)
     #define FIND(p) "cmd /V /C \"@echo off && setlocal enabledelayedexpansion && set \"var= %s\" && set \"var=!var:/=\\!\" && for %%I in (!var!) do set \"file=%%~dpnxI\" && set \"file=!file:%%cd%%\\=!\" && @echo !file!\"", p
-#elif defined(OS_CYGWIN)
+#elif defined(OS_CYGWIN) || defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
     #define FIND(p) "find $(dirname \"%s\") -maxdepth 1 -type f -name \"$(basename \"%s\")\"", p, p
 #endif
 /* end of globbing pattern */
@@ -128,7 +126,7 @@ typedef enum {
    CMD_HELP,
    CMD_QUIET,
    CMD_NOERR,
-   // commands above
+   /* commands above */
    CMD__COUNT
 } CmdList;
 
@@ -177,16 +175,16 @@ static const char *static_build_str[BUILD__COUNT] = {
     "Shared",
 };
 static char *static_ext[BUILD__COUNT] = {
-#if defined(OS_WIN)
+#if defined(OS_WIN) || defined(OS_CYGWIN)
     ".exe",
     ".exe",
     ".a",
     ".dll",
-#elif defined(OS_CYGWIN)
-    ".exe",
-    ".exe",
+#elif defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
+    "",
+    "",
     ".a",
-    ".dll",
+    ".so",
 #endif
 };
 typedef struct Prj {
@@ -421,7 +419,7 @@ static uint64_t modtime(Bd *bd, const char *filename)
     CloseHandle(filehandle);
     ULARGE_INTEGER result = {.HighPart = t.dwHighDateTime, .LowPart = t.dwLowDateTime};
     return result.QuadPart;
-#elif defined(OS_CYGWIN)
+#elif defined(OS_CYGWIN) || defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
     struct stat attr;
     if(stat(filename, &attr) == -1) return 0;
     return (uint64_t)attr.st_ctime;
@@ -475,7 +473,7 @@ static void makedir(const char *dirname)
 #if defined(OS_WIN)
    /* TODO is this quiet?! if not make it quiet */
    mkdir(dirname);
-#elif defined(OS_CYGWIN)
+#elif defined(OS_CYGWIN) || defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
    mkdir(dirname, 0700);
 #endif
 }
@@ -654,7 +652,7 @@ static void clean(Bd *bd, Prj *p)
     char delfilestr[] = "del /q";
     char delfoldstr[] = "rmdir";
     char noerr[] = "2>nul";
-#elif defined(OS_CYGWIN)
+#elif defined(OS_CYGWIN) || defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
     char delfilestr[] = "rm";
     char delfoldstr[] = "rm -d";
     char noerr[] = "2>/dev/null";
@@ -755,7 +753,6 @@ static void bd_execute(Bd *bd, CmdList cmd)
     }
 }
 
-/* TODO fix the compiler being constant "gcc" (no g++ ?????)*/
 /* TODO maybe add multithreading */
 
 /* start of program */
