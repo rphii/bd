@@ -48,6 +48,11 @@ String with your own linker options.
 String with your own linker libraries.
 - **Precede paths** with the `-L=` flag. (make sure to include the equals sign)
 - **precede names** with the `-l=` flag. (make sure to include the equals sign)
+### C compiler (`Prj::cc`)
+String specifying compiler to use.
+- If it's `null` it defaults to `gcc`
+- Set it to `g++` to compile c++ programs
+- Or alternatively use any compiler of your choice
 
 ## Tested platforms
 - Windows
