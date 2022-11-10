@@ -54,6 +54,38 @@ String specifying compiler to use.
 - Set it to `g++` to compile C++ programs
 - Or alternatively use any compiler of your choice
 
+## Minimum Recommended Configuration
+### C
+```
+Prj p[] = {{
+    .type = BUILD_APP,
+    .name = "app_name",
+    .objd = "obj",
+    .srcf = D("src/*.c"),
+    .cflgs = "-Wall -O2",
+}};
+```
+### C++
+```
+Prj p[] = {{
+    .type = BUILD_APP,
+    .name = "app_name",
+    .objd = "obj",
+    .srcf = D("src/*.cpp"),
+    .cflgs = "-Wall -O2",
+    .cc = "g++",
+}};
+```
+
+## Minimum Possible Configuration
+### C
+```
+Prj p[] = {{
+    .name = "app_name",
+    .srcf = D("main.c"),
+}};
+```
+
 ## Tested platforms
 - Windows
 - Cygwin
