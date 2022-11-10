@@ -89,6 +89,7 @@ Prj p[] = {{
 ## Tested platforms
 - Windows
 - Cygwin
+- Linux
 - (...missing verification for the rest...)
 
 ## General Notice
