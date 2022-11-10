@@ -643,7 +643,7 @@ static StrArr *prj_srcfs_chg_dirext(Bd *bd, StrArr *srcfs, char *new_dir, char *
     for(int i = 0; i < srcfs->n; i++) {
         int ext = strrstrn(srcfs->s[i], ".");
         int slash = strrstrn(srcfs->s[i], SLASH_STR);
-        result->s[i] = strprf(0, "%s%s%.*s%s", new_dir, SLASH_STR, ext - slash - 1, &srcfs->s[i][slash + 1], new_ext);
+        result->s[i] = strprf(0, "%s%s%.*s%s", new_dir ? new_dir : "", new_dir ? SLASH_STR : "", ext - slash - 1, &srcfs->s[i][slash + 1], new_ext);
     }
     return result;
 }
