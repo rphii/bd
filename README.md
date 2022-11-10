@@ -16,7 +16,7 @@ Simple (to use), one-file **b**uil**d** tool for C projects.
 To see a list of all available commands and their description, run `./bd -h`. Most important commands:
 - `build` build the projects (providing no arguments defaults to this)
 - `clean` clean the mess
-- `clean build` basically rebuildW
+- `clean build` basically rebuild
 
 ## Colors
 Following colors were picked depending on the action:
