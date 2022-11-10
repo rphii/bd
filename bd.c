@@ -49,6 +49,7 @@ SOFTWARE. */
 #else
     /* common things by all others */
     #define SLASH_STR   "/"
+    #include <errno.h>
 #endif
 #if defined(OS_WIN)
 #elif defined(__CYGWIN__)
@@ -420,7 +421,9 @@ static uint64_t modtime(Bd *bd, const char *filename)
     return result.QuadPart;
 #elif defined(OS_CYGWIN) || defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
     struct stat attr;
-    if(stat(filename, &attr) == -1) BD_ERR(bd, 0, "%s: Failed to get stat", filename);
+    if(stat(filename, &attr) == -1 && errno != ENOENT ) {
+        BD_ERR(bd, 0, "%s: %s", filename, strerror(errno));
+    }
     return (uint64_t)attr.st_ctime;
 #endif
 }
