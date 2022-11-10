@@ -190,6 +190,7 @@ static char *static_ext[BUILD__COUNT] = {
 #endif
 };
 typedef struct Prj {
+    char *cc;       /* c compiler */
     char *cflgs;    /* compile flags / options */   
     char *lopts;    /* linker flags / options */
     char *llibs;    /* linker library */
@@ -201,8 +202,8 @@ typedef struct Prj {
 
 /* all function prototypes */
 static char *strprf(char *str, char *format, ...);
-static char *static_cc(BuildList type, char *flags, char *ofile, char *cfile);
-static char *static_ld(BuildList type, char *options, char *name, char *ofiles, char *libstuff);
+static char *static_cc(BuildList type, char *cc, char *flags, char *ofile, char *cfile);
+static char *static_ld(BuildList type, char *cc, char *options, char *name, char *ofiles, char *libstuff);
 static void prj_print(Bd *bd, Prj *p, bool simple);
 static StrArr *strarr_new();
 static void strarr_free(StrArr *arr);
@@ -253,23 +254,23 @@ static char *strprf(char *str, char *format, ...)
     return result;
 }
 
-static char *static_cc(BuildList type, char *flags, char *ofile, char *cfile)
+static char *static_cc(BuildList type, char *cc, char *flags, char *ofile, char *cfile)
 {
     switch(type) {
         case BUILD_APP      : ;
-        case BUILD_EXAMPLES : return strprf(0, "gcc -c -MMD -MP %s%s-D%s -o %s %s", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
-        case BUILD_STATIC   : return strprf(0, "gcc -c -MMD -MP %s%s-D%s -o %s %s", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
-        case BUILD_SHARED   : return strprf(0, "gcc -c -MMD -MP -fPIC -D%s%s%s -o %s %s", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
+        case BUILD_EXAMPLES : return strprf(0, "%s -c -MMD -MP %s%s-D%s -o %s %s", cc ? cc : "gcc", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
+        case BUILD_STATIC   : return strprf(0, "%s -c -MMD -MP %s%s-D%s -o %s %s", cc ? cc : "gcc", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
+        case BUILD_SHARED   : return strprf(0, "%s -c -MMD -MP -fPIC -D%s%s%s -o %s %s", cc ? cc : "gcc", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
         default             : return 0;
     }
 }
-static char *static_ld(BuildList type, char *options, char *name, char *ofiles, char *libstuff)
+static char *static_ld(BuildList type, char *cc, char *options, char *name, char *ofiles, char *libstuff)
 {
     switch(type) {
         case BUILD_APP      : ;
-        case BUILD_EXAMPLES : return strprf(0, "gcc %s%s-o %s %s %s", options ? options : "", options ? " " : "", name, ofiles, libstuff ? libstuff : "");
+        case BUILD_EXAMPLES : return strprf(0, "%s %s%s-o %s %s %s", cc ? cc : "gcc", options ? options : "", options ? " " : "", name, ofiles, libstuff ? libstuff : "");
         case BUILD_STATIC   : return strprf(0, "ar rcs %s%s %s", name, static_ext[type], ofiles);
-        case BUILD_SHARED   : return strprf(0, "gcc -shared -fPIC %s%s-o %s%s %s %s", options ? options : "", options ? " " : "", name, static_ext[type], ofiles, libstuff ? libstuff : "");
+        case BUILD_SHARED   : return strprf(0, "%s -shared -fPIC %s%s-o %s%s %s %s", cc ? cc : "gcc", options ? options : "", options ? " " : "", name, static_ext[type], ofiles, libstuff ? libstuff : "");
         default             : return 0;
     }
 }
@@ -498,7 +499,7 @@ static StrArr *extract_dirs(Bd *bd, char *path, bool skiplast)
 
 static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf)
 {
-    char *cc = static_cc(p->type, p->cflgs, objf, srcf);
+    char *cc = static_cc(p->type, p->cc, p->cflgs, objf, srcf);
     if(!strarr_set_n(&bd->ofiles, bd->ofiles.n + 1)) BD_ERR(bd,, "Failed to modify StrArr");
     bd->ofiles.s[bd->ofiles.n - 1] = strprf(bd->ofiles.s[bd->ofiles.n - 1], objf);
     BD_MSG(bd, "[\033[96m%s\033[0m] %s", name, cc); /* bright cyan color */
@@ -513,7 +514,7 @@ static void link(Bd *bd, Prj *p, char *name)
         /* link */
         char *ofiles = 0;
         for(int i = 0; i < bd->ofiles.n; i++) ofiles = strprf(ofiles, "%s%s", bd->ofiles.s[i], i + 1 < bd->ofiles.n ? " " : "");
-        char *ld = static_ld(p->type, p->lopts, name, ofiles, p->llibs);
+        char *ld = static_ld(p->type, p->cc, p->lopts, name, ofiles, p->llibs);
         BD_MSG(bd, "[\033[93m%s\033[0m] %s", name, ld); /* bright yellow color*/
         bd->error = system(ld);
         free(ofiles);
@@ -625,7 +626,7 @@ static StrArr *prj_names(Bd *bd, Prj *p, StrArr *srcfs)
         result->s[result->n - 1] = strprf(0, "%s", p->name);
     } else {
         for(int i = 0; i < srcfs->n; i++) {
-            int ext = strrstrn(srcfs->s[i], ".c");
+            int ext = strrstrn(srcfs->s[i], ".");
             int dir = strrstrn(srcfs->s[i], SLASH_STR);
             /* add to result */
             if(!strarr_set_n(result, result->n + 1)) BD_ERR(bd, 0, "Failed to modify StrArr");
@@ -640,7 +641,7 @@ static StrArr *prj_srcfs_chg_dirext(Bd *bd, StrArr *srcfs, char *new_dir, char *
     if(!result) BD_ERR(bd, 0, "Failed to create StrArr");
     if(!strarr_set_n(result, srcfs->n)) BD_ERR(bd, 0, "Failed to modify StrArr");
     for(int i = 0; i < srcfs->n; i++) {
-        int ext = strrstrn(srcfs->s[i], ".c");
+        int ext = strrstrn(srcfs->s[i], ".");
         int slash = strrstrn(srcfs->s[i], SLASH_STR);
         result->s[i] = strprf(0, "%s%s%.*s%s", new_dir, SLASH_STR, ext - slash - 1, &srcfs->s[i][slash + 1], new_ext);
     }
@@ -754,7 +755,6 @@ static void bd_execute(Bd *bd, CmdList cmd)
     }
 }
 
-/* TODO fix the constant ".c", ".h", ".d" (last one prob. not) to be changeable... */
 /* TODO fix the compiler being constant "gcc" (no g++ ?????)*/
 /* TODO maybe add multithreading */
 
