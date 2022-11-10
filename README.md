@@ -56,7 +56,7 @@ String specifying compiler to use.
 
 ## Minimum Recommended Configuration
 ### C
-```
+```c
 Prj p[] = {{
     .type = BUILD_APP,
     .name = "app_name",
@@ -66,7 +66,7 @@ Prj p[] = {{
 }};
 ```
 ### C++
-```
+```c
 Prj p[] = {{
     .type = BUILD_APP,
     .name = "app_name",
@@ -79,7 +79,7 @@ Prj p[] = {{
 
 ## Minimum Possible Configuration
 ### C
-```
+```c
 Prj p[] = {{
     .name = "app_name",
     .srcf = D("main.c"),
