@@ -420,7 +420,7 @@ static uint64_t modtime(Bd *bd, const char *filename)
     ULARGE_INTEGER result = {.HighPart = t.dwHighDateTime, .LowPart = t.dwLowDateTime};
     return result.QuadPart;
 #elif defined(OS_CYGWIN) || defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
-    struct stat attr;
+    struct stat attr = {0};
     if(stat(filename, &attr) == -1 && errno != ENOENT ) {
         BD_ERR(bd, 0, "%s: %s", filename, strerror(errno));
     }
