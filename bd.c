@@ -498,7 +498,7 @@ static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf)
     char *cc = static_cc(p->type, p->cc, p->cflgs, objf, srcf);
     if(!strarr_set_n(&bd->ofiles, bd->ofiles.n + 1)) BD_ERR(bd,, "Failed to modify StrArr");
     bd->ofiles.s[bd->ofiles.n - 1] = strprf(bd->ofiles.s[bd->ofiles.n - 1], objf);
-    BD_MSG(bd, "[\033[96m%s\033[0m] %s", name, cc); /* bright cyan color */
+    BD_MSG(bd, "[\033[94m%s\033[0m] %s", name, cc); /* bright blue color */
     bd->error = system(cc);
     free(cc);
 }

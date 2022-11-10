@@ -20,7 +20,7 @@ To see a list of all available commands and their description, run `./bd -h`. Mo
 
 ## Colors
 Following colors were picked depending on the action:
-- cyan = compiling
+- blue = compiling
 - yellow = linking
 - green = up to date
 - magenta = cleaning
