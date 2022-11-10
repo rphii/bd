@@ -207,7 +207,7 @@ static void prj_print(Bd *bd, Prj *p, bool simple);
 static StrArr *strarr_new();
 static void strarr_free(StrArr *arr);
 static bool strarr_set_n(StrArr *arr, int n);
-static StrArr *parse_pipe(Bd *bd, char *cmd);
+static bool parse_pipe(Bd *bd, char *cmd, StrArr **result);
 static StrArr *parse_dfile(Bd *bd, char *dfile);
 static int strrstrn(const char *s1, const char *s2);
 static uint64_t modtime(Bd *bd, const char *filename);
@@ -331,30 +331,30 @@ static bool strarr_set_n(StrArr *arr, int n)
     return true;
 }
 
-static StrArr *parse_pipe(Bd *bd, char *cmd)
+static bool parse_pipe(Bd *bd, char *cmd, StrArr **result)
 {
     FILE *fp = popen(cmd, "rb");
-    if(!fp) BD_ERR(bd, 0, "Could not open pipe");
+    if(!fp) BD_ERR(bd, false, "Could not open pipe");
 
-    StrArr *result = strarr_new();
-    if(!result) BD_ERR(bd, 0, "Failed to create string array");
+    if(!*result) *result = strarr_new();
+    if(!*result) BD_ERR(bd, false, "Failed to create string array");
     int c = fgetc(fp);
-    int n = 1;
+    int n = (*result)->n + 1;
     while(c != EOF) {
         if(c == '\n') n++;
         else if(c != '\r') {
-            if(!strarr_set_n(result, n)) BD_ERR(bd, 0, "Failed to modify StrArr");
-            result->s[result->n - 1] = strprf(result->s[result->n - 1], "%c", c);
+            if(!strarr_set_n(*result, n)) BD_ERR(bd, false, "Failed to modify StrArr");
+            (*result)->s[(*result)->n - 1] = strprf((*result)->s[(*result)->n - 1], "%c", c);
         }
         c = fgetc(fp);
     }
 
-    if(pclose(fp)) BD_ERR(bd, 0, "Could not close pipe");
-    if(!result->n) {    /* TODO check other functions that use `strarr_new()` to maybe also return 0 when empty... */
-        free(result);
-        result = 0;
+    if(pclose(fp)) BD_ERR(bd, false, "Could not close pipe");
+    if(!(*result)->n) {    /* TODO check other functions that use `strarr_new()` to maybe also return 0 when empty... */
+        free(*result);
+        *result = 0;
     }
-    return result;
+    return true;
 }
 
 static StrArr *parse_dfile(Bd *bd, char *dfile)
@@ -551,8 +551,7 @@ static void build(Bd *bd, Prj *p)
         /* maybe check if target even exists */
         char *targetstr = strprf(0, "%s%s", targets->s[k], static_ext[p->type]);
         uint64_t m_target = modtime(bd, targetstr);
-        bool newbuild = (bool)(m_target == 0);
-        bool newlink = (bool)(m_llibs > m_target);
+        bool newlink = (bool)(m_llibs > m_target) || (bool)(m_target == 0);
         free(targetstr);
         /* set up loop */
         int i0 = (p->type == BUILD_EXAMPLES) ? k : 0;
@@ -561,7 +560,7 @@ static void build(Bd *bd, Prj *p)
             /* go over source file(s) */
             uint64_t m_srcf = modtime(bd, srcfs->s[i]);
             uint64_t m_objf = modtime(bd, objfs->s[i]);
-            if(!newbuild && m_objf >= m_srcf) {
+            if(m_objf >= m_srcf) {
                 /* check dependencies */
                 bool recompiled = false;
                 StrArr *hdrfs = parse_dfile(bd, depfs->s[i]);
@@ -610,8 +609,8 @@ static StrArr *prj_srcfs(Bd *bd, Prj *p)
     StrArr *result = 0;
     for(int k = 0; k < p->srcf.n && !bd->error; k++) {
         char *cmd = strprf(0, FIND(p->srcf.s[k]));
-        result = parse_pipe(bd, cmd);
-        if(!result) BD_ERR(bd, 0, "Pipe returned nothing");
+        bool state = parse_pipe(bd, cmd, &result);
+        if(!state) BD_ERR(bd, 0, "Pipe returned nothing");
         free(cmd);
     }
     return result;
