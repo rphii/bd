@@ -111,6 +111,7 @@ SOFTWARE. */
 #define BD_MSG(bd,...)  if(!bd->quiet) { printf(__VA_ARGS__); printf("\n"); }
 #define SIZE_ARRAY(x)   (sizeof(x)/sizeof(*x))
 #define strarr_free_p(x)    do { strarr_free(x); free(x); x = 0; } while(0)
+#define strarr_free_pa(...) do { for(int i = 0; i < SIZE_ARRAY(((StrArr*[]){__VA_ARGS__})); i++) strarr_free_p(((StrArr*[]){__VA_ARGS__})[i]); } while(0)
 
 /* structs */
 
@@ -290,8 +291,7 @@ static void prj_print(Bd *bd, Prj *p, bool simple) /* TODO list if they're up to
 
     /* print all names */
     for(int i = 0; i < targets->n; i++) printf("%-7s : \033[1m[ %s ]\033[0m\n", static_build_str[p->type], targets->s[i]);
-    strarr_free_p(srcfs);
-    strarr_free_p(targets);
+    strarr_free_pa(srcfs, targets);
     if(simple) return;
     /* print the configuration */
     printf("  cc    = %s\n", p->cc);
@@ -592,12 +592,7 @@ static void build(Bd *bd, Prj *p)
     }
     if(p->type != BUILD_EXAMPLES) link(bd, p, targets->s[0]);
     /* clean up memory used */
-    strarr_free_p(dirn);
-    strarr_free_p(diro);
-    strarr_free_p(srcfs);
-    strarr_free_p(objfs);
-    strarr_free_p(depfs);
-    strarr_free_p(targets);
+    strarr_free_pa(dirn, diro, srcfs, objfs, depfs, targets);
     return;
 }
 
@@ -694,12 +689,7 @@ static void clean(Bd *bd, Prj *p)
         free(delfolds);
     }
     /* clean up memory used */
-    strarr_free_p(dirn);
-    strarr_free_p(diro);
-    strarr_free_p(srcfs);
-    strarr_free_p(objfs);
-    strarr_free_p(depfs);
-    strarr_free_p(targets);
+    strarr_free_pa(dirn, diro, srcfs, objfs, depfs, targets);
 }
 
 static void bd_execute(Bd *bd, CmdList cmd)
