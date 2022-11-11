@@ -132,8 +132,7 @@ typedef enum {
    /* commands above */
    CMD__COUNT
 } CmdList;
-
-static const char *cmds[CMD__COUNT] = {
+static const char *static_cmds[CMD__COUNT] = {
    "build",
    "clean",
    "list",
@@ -143,8 +142,7 @@ static const char *cmds[CMD__COUNT] = {
    "-q",
    "-e",
 };
-
-static const char *cmdsinfo[CMD__COUNT] = {
+static const char *static_cmdsinfo[CMD__COUNT] = {
     "Build the projects",
     "Clean created files",
     "List all projects (simple view)",
@@ -154,15 +152,6 @@ static const char *cmdsinfo[CMD__COUNT] = {
     "Execute quietly",
     "Also makes errors quiet",
 };
-
-typedef struct Bd {
-    StrArr ofiles;
-    int error;
-    int count;
-    bool quiet;
-    bool noerr;
-    bool done;
-} Bd;
 
 typedef enum {
     BUILD_APP,
@@ -190,6 +179,16 @@ static char *static_ext[BUILD__COUNT] = {
     ".so",
 #endif
 };
+
+typedef struct Bd {
+    StrArr ofiles;
+    int error;
+    int count;
+    bool quiet;
+    bool noerr;
+    bool done;
+} Bd;
+
 typedef struct Prj {
     char *cc;       /* c compiler */
     char *cflgs;    /* compile flags / options */   
@@ -724,7 +723,7 @@ static void bd_execute(Bd *bd, CmdList cmd)
             bd->done = true;
         } break;
         case CMD_HELP: {
-            for(int i = 0; i < CMD__COUNT; i++) printf("%2s%-8s%s\n", "", cmds[i], cmdsinfo[i]);
+            for(int i = 0; i < CMD__COUNT; i++) printf("%2s%-8s%s\n", "", static_cmds[i], static_cmdsinfo[i]);
             bd->done = true;
         } break;
         case CMD_QUIET: {
@@ -746,7 +745,7 @@ int main(int argc, const char **argv)
     /* go over command line args */
     for(int i = 1; i < argc; i++) {
         for(CmdList j = 0; j < CMD__COUNT; j++) {
-            if(strcmp(argv[i], cmds[j])) continue;
+            if(strcmp(argv[i], static_cmds[j])) continue;
             bd_execute(&bd, j);
         }
     }
