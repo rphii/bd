@@ -38,10 +38,10 @@ SOFTWARE. */
     #define OS_DEF "OS_WIN"
     #define OS_WIN
     #define SLASH_STR   "\\"
-    #ifdef _WIN64
     #include "windows.h"
     #include "fileapi.h"
     #include "errhandlingapi.h"
+    #ifdef _WIN64
         /* define something for Windows (64-bit only) */
     #else
         /* define something for Windows (32-bit only) */
