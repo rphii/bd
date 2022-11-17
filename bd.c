@@ -106,6 +106,10 @@ SOFTWARE. */
 #endif
 /* end of globbing pattern */
 
+#ifndef CONFIG
+#define CONFIG  "bd.conf"
+#endif
+
 #define D(...)          (StrArr){.s = (char *[]){__VA_ARGS__}, .n = sizeof((char *[]){__VA_ARGS__})/sizeof(*(char *[]){__VA_ARGS__})}
 #define BD_ERR(bd,retval,...)  do { if(!bd->noerr) { printf("\033[91;1m[ERROR:%d]\033[0m ", __LINE__); printf(__VA_ARGS__); printf("\n"); } bd->error = __LINE__; return retval; } while(0)
 #define BD_MSG(bd,...)  if(!bd->quiet) { printf(__VA_ARGS__); printf("\n"); }
@@ -693,13 +697,9 @@ static void clean(Bd *bd, Prj *p)
 
 static void bd_execute(Bd *bd, CmdList cmd)
 {
-    Prj p[] = {{
-        .type = BUILD_APP,
-        .name = "a",
-        .objd = "obj",
-        .srcf = D("src/*.c"),
-        .cflgs = "-Wall -O2",
-    }};
+    Prj p[] = {
+#include CONFIG
+    };
 
     switch(cmd) {
         case CMD_BUILD: {
