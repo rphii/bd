@@ -29,7 +29,7 @@ Following colors were picked depending on the action:
 ## How to configure
 Have a [`bd.conf`](bd.conf) file in your root project, where you would normally put your Makefiles.
 - **This file should / will be included in [`bd.c`](bd.c) as `CONFIG`.**
-- If you use [`bd.bat (Windows)`](bd.bat) or [`bd (Linux etc.)`](bd), the above is handled automatically.
+- If you use [`bd.bat (Windows)`](bd.bat) or [`bd (Linux etc.)`](bd) the above is handled automatically.
 ### Types of projects (`Prj::type`)
 - `BUILD_APP` builds an executable
 - `BUILD_STATIC` builds a static library
