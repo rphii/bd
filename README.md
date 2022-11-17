@@ -87,7 +87,7 @@ String specifying compiler to use.
 See https://github.com/rphii/Rlib where I created a library and used it to link with examples.
 
 ## Minimum Possible Configuration
-### C (file: `bd.conf`)
+### C
 ```c
 {.srcf = D("*.c")}
 ```
