@@ -3,15 +3,15 @@ Simple (to use), one-file **b**uil**d** tool for C/C++ projects.
 
 ## What does it do?
 - It's a simple build tool for C/C++ projects
-- Its instructions on what to build are directly stored within the source code itself, making it compact
+- Its instructions on what to build are directly stored within the source code itself (included as a [header file](bd.conf)), making it compact
 - You can choose between four different [build types](#types-of-projects-prjtype)
 - It makes sure to recompile a file if their dependency (either header file or library) was modified
 
 ## How to use
-1. Clone this repository into a folder.
-2. Add that folder to your PATH.
-3. (Optional) In your project, create a [`bd.conf`](bd.conf) (see [configuration options](#how-to-configure))
-4. Run `bd` in your project.
+1. Clone this repository into a folder
+2. Add that folder to your PATH
+3. (Optional) In your project, create a [`bd.conf`](bd.conf) (see [configuration](#how-to-configure))
+4. Run `bd` in your project
 
 ## Help / command line interface
 To see a list of all available commands and their description, run `./bd -h`. Most important commands:
@@ -59,8 +59,9 @@ String specifying compiler to use.
 - Or alternatively use any compiler of your choice
 
 ## Minimum Recommended Configuration
-### C (file: `bd.conf`)
+### C
 ```c
+/* file: `bd.conf` */
 {
     .type = BUILD_APP,
     .name = "app_name",
@@ -69,8 +70,9 @@ String specifying compiler to use.
     .cflgs = "-Wall -O2",
 }
 ```
-### C++ (file: `bd.conf`)
+### C++
 ```c
+/* file: `bd.conf` */
 {
     .type = BUILD_APP,
     .name = "app_name",
@@ -98,7 +100,7 @@ See https://github.com/rphii/Rlib where I created a library and used it to link 
 
 ## General Notice
 - Don't have any spaces in any of the files having any business with this build tool
-- If you use subfolders in a string, always use `/` and not `\`
+- If you use subfolders in the config, always use `/` and not `\`, even on Windows
 - Among others, `Prj::name` and `Prj::obj` can be a sequence of subfolders
 
 ## Planned
