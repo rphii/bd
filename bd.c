@@ -220,7 +220,7 @@ static uint64_t modlibs(Bd *bd, char *llibs);
 static void makedir(const char *dirname);
 static StrArr *extract_dirs(Bd *bd, char *path, bool skiplast);
 static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf);
-static void link(Bd *bd, Prj *p, char *name);
+static void link(Bd *bd, Prj *p, char *name, bool avoidlink);
 static void build(Bd *bd, Prj *p);
 static void clean(Bd *bd, Prj *p);
 static void bd_execute(Bd *bd, CmdList cmd);
@@ -513,10 +513,10 @@ static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf)
     free(cc);
 }
 
-static void link(Bd *bd, Prj *p, char *name)
+static void link(Bd *bd, Prj *p, char *name, bool avoidlink)
 {
     if(bd->error) return;
-    if(bd->ofiles.n) {
+    if(bd->ofiles.n && !avoidlink) {
         /* link */
         char *ofiles = 0;
         for(int i = 0; i < bd->ofiles.n; i++) ofiles = strprf(ofiles, "%s%s", bd->ofiles.s[i], i + 1 < bd->ofiles.n ? " " : "");
@@ -525,10 +525,10 @@ static void link(Bd *bd, Prj *p, char *name)
         bd->error = system(ld);
         free(ofiles);
         free(ld);
-        strarr_free(&bd->ofiles);
     } else {
         BD_MSG(bd, "\033[92;1m[ %s ]\033[0m is up to date", name); /* bright green color */
     }
+    strarr_free(&bd->ofiles);
 }
 
 static void build(Bd *bd, Prj *p)
@@ -550,6 +550,7 @@ static void build(Bd *bd, Prj *p)
     if(!depfs) BD_ERR(bd,, "No dependency files");
     StrArr *targets = prj_names(bd, p, srcfs);
     if(!targets) BD_ERR(bd,, "No targets to build");
+    bool relink = false;
     /* create folders */
     for(int i = 0; i < dirn->n; i++) makedir(dirn->s[i]);
     for(int i = 0; i < diro->n; i++) makedir(diro->s[i]);
@@ -576,11 +577,12 @@ static void build(Bd *bd, Prj *p)
                     if(m_hdrf > m_objf) {
                         /* header file was updated, recompile */
                         compile(bd, p, targets->s[k], objfs->s[i], srcfs->s[i]);
+                        relink |= true;
                         recompiled = true;
                         break;
                     } 
                 }
-                if(!recompiled && newlink) {
+                if((!recompiled && newlink) || p->type != BUILD_EXAMPLES) {
                     /* compilation up to date, but it should re-link */
                     if(!strarr_set_n(&bd->ofiles, bd->ofiles.n + 1)) BD_ERR(bd,, "Failed to modify StrArr");
                     bd->ofiles.s[bd->ofiles.n - 1] = strprf(0, "%s", objfs->s[i]);
@@ -588,12 +590,13 @@ static void build(Bd *bd, Prj *p)
                 strarr_free_p(hdrfs);
             } else {
                 compile(bd, p, targets->s[k], objfs->s[i], srcfs->s[i]);
+                relink |= true;
             }
             /* only if we're of type EXAMPLES, link already */
-            if(p->type == BUILD_EXAMPLES) link(bd, p, targets->s[k]);
+            if(p->type == BUILD_EXAMPLES) link(bd, p, targets->s[k], false);
         }
     }
-    if(p->type != BUILD_EXAMPLES) link(bd, p, targets->s[0]);
+    if(p->type != BUILD_EXAMPLES) link(bd, p, targets->s[0], !relink);
     /* clean up memory used */
     strarr_free_pa(dirn, diro, srcfs, objfs, depfs, targets);
     return;
