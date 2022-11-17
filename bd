@@ -1,0 +1,6 @@
+cp -R -u -p $(dirname "$0")/bd.conf "$PWD"
+GCC_CMD="gcc -Wall -O2 -D CONFIG=<"$PWD"/bd.conf> -o bd $(dirname "$0")/bd.c"
+echo $GCC_CMD
+$GCC_CMD
+./bd "$@"
+rm -f ./bd # optional
