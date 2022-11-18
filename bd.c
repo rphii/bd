@@ -582,7 +582,7 @@ static void build(Bd *bd, Prj *p)
                         break;
                     } 
                 }
-                if((!recompiled && newlink) || p->type != BUILD_EXAMPLES) {
+                if(!recompiled && (newlink || p->type != BUILD_EXAMPLES)) {
                     /* compilation up to date, but it should re-link */
                     if(!strarr_set_n(&bd->ofiles, bd->ofiles.n + 1)) BD_ERR(bd,, "Failed to modify StrArr");
                     bd->ofiles.s[bd->ofiles.n - 1] = strprf(0, "%s", objfs->s[i]);
