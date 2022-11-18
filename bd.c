@@ -111,7 +111,7 @@ SOFTWARE. */
 #endif
 
 #define D(...)          (StrArr){.s = (char *[]){__VA_ARGS__}, .n = sizeof((char *[]){__VA_ARGS__})/sizeof(*(char *[]){__VA_ARGS__})}
-#define BD_ERR(bd,retval,...)  do { if(!bd->noerr) { printf("\033[91;1m[ERROR:%d]\033[0m ", __LINE__); printf(__VA_ARGS__); printf("\n"); } bd->error = __LINE__; return retval; } while(0)
+#define BD_ERR(bd,retval,...)  do { if(!bd->noerr) { printf("\033[91;1m[ERROR:%s:%d]\033[0m ", __func__, __LINE__); printf(__VA_ARGS__); printf("\n"); } bd->error = __LINE__; return retval; } while(0)
 #define BD_MSG(bd,...)  if(!bd->quiet) { printf(__VA_ARGS__); printf("\n"); }
 #define SIZE_ARRAY(x)   (sizeof(x)/sizeof(*x))
 #define strarr_free_p(x)    do { strarr_free(x); free(x); x = 0; } while(0)
@@ -296,7 +296,7 @@ static char *static_ld(Bd *bd, Prj *p, char *name, char *ofiles, char *libstuff)
     }
 }
 
-static void prj_print(Bd *bd, Prj *p, bool simple) /* TODO list if they're up to date, & clean up the mess with EXAMPLES (difference in listing/cleaning/building...) */
+static void prj_print(Bd *bd, Prj *p, bool simple) /* TODO list if they're up to date */
 {
     if(!p) return;
     /* gather files */
@@ -358,7 +358,7 @@ static bool parse_pipe(Bd *bd, char *cmd, StrArr **result)
     if(!fp) BD_ERR(bd, false, "Could not open pipe");
 
     if(!*result) *result = strarr_new();
-    if(!*result) BD_ERR(bd, false, "Failed to create string array");
+    if(!*result) BD_ERR(bd, false, "Failed to create StrArr");
     int c = fgetc(fp);
     int n = (*result)->n + 1;
     while(c != EOF) {
@@ -384,7 +384,7 @@ static StrArr *parse_dfile(Bd *bd, char *dfile)
     if(!fp) return 0;
 
     StrArr *result = strarr_new();
-    if(!result) BD_ERR(bd, 0, "Failed to create string array");
+    if(!result) BD_ERR(bd, 0, "Failed to create StrArr");
 
     /* skip first line */
     int c = fgetc(fp);
@@ -463,7 +463,7 @@ static uint64_t modlibs(Bd *bd, char *llibs)
     StrArr *arr_Ll[] = {strarr_new(), strarr_new()};
     for(int i = 0; i < (int)SIZE_ARRAY(arr_Ll); i++) {
         char *search = llibs;
-        if(!arr_Ll[i]) BD_ERR(bd, 0, "Failed to create string array");
+        if(!arr_Ll[i]) BD_ERR(bd, 0, "Failed to create StrArr");
         while(*search) {
             search = strstr(search, find[i]);
             if(!search) break;
@@ -575,7 +575,7 @@ static void build(Bd *bd, Prj *p)
     for(int i = 0; i < dirn->n; i++) makedir(dirn->s[i]);
     for(int i = 0; i < diro->n; i++) makedir(diro->s[i]);
     /* now compile it */
-    for(int k = 0; k < targets->n; k++) {
+    for(int k = 0; k < targets->n && !bd->error; k++) {
         /* maybe check if target even exists */
         char *targetstr = strprf(0, "%s%s", targets->s[k], static_ext[p->type]);
         uint64_t m_target = modtime(bd, targetstr);
@@ -636,7 +636,7 @@ static StrArr *prj_srcfs(Bd *bd, Prj *p)
 static StrArr *prj_names(Bd *bd, Prj *p, StrArr *srcfs)
 {
     StrArr *result = strarr_new();
-    if(!result) BD_ERR(bd, 0, "Failed to create string array");
+    if(!result) BD_ERR(bd, 0, "Failed to create StrArr");
     /* only if we're not dealing with examples, the name is simple */
     if(p->type != BUILD_EXAMPLES) {
         if(!strarr_set_n(result, result->n + 1)) BD_ERR(bd, 0, "Failed to modify StrArr");
