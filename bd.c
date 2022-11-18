@@ -314,11 +314,12 @@ static void prj_print(Bd *bd, Prj *p, bool simple) /* TODO list if they're up to
     strarr_free_pa(srcfs, targets);
     if(simple) return;
     /* print the configuration */
-    printf("  cc    = %s\n", p->cc);
-    printf("  cflgs = %s\n", p->cflgs);
-    printf("  lopts = %s\n", p->lopts);
-    printf("  llibs = %s\n", p->llibs);
-    printf("  objd  = [%s]\n", p->objd);
+    printf("  cc    = %s\n", p->cc ? p->cc : static_cc_def);
+    printf("  cxx   = %s\n", p->cxx ? p->cxx : static_cxx_def);
+    if(p->cflgs) printf("  cflgs = %s\n", p->cflgs);
+    if(p->lopts) printf("  lopts = %s\n", p->lopts);
+    if(p->llibs) printf("  llibs = %s\n", p->llibs);
+    if(p->objd) printf("  objd  = [%s]\n", p->objd);
     for(int i = 0; i < p->srcf.n; i++) printf("%4s%s\n", "", p->srcf.s[i]);
 }
 
