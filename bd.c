@@ -110,9 +110,6 @@ SOFTWARE. */
 #define CONFIG  "bd.conf"
 #endif
 
-#define CC_DEF "gcc"
-#define CXX_DEF "g++"
-
 #define D(...)          (StrArr){.s = (char *[]){__VA_ARGS__}, .n = sizeof((char *[]){__VA_ARGS__})/sizeof(*(char *[]){__VA_ARGS__})}
 #define BD_ERR(bd,retval,...)  do { if(!bd->noerr) { printf("\033[91;1m[ERROR:%d]\033[0m ", __LINE__); printf(__VA_ARGS__); printf("\n"); } bd->error = __LINE__; return retval; } while(0)
 #define BD_MSG(bd,...)  if(!bd->quiet) { printf(__VA_ARGS__); printf("\n"); }
@@ -210,6 +207,9 @@ typedef struct Prj {
     BuildList type; /* type */
 } Prj;
 
+static char static_cc_def[] = "gcc";
+static char static_cxx_def[] = "g++";
+
 /* all function prototypes */
 static char *strprf(char *str, char *format, ...);
 static char *static_cc_cxx(Bd *bd, Prj *p, char *ofile, char *cfile);
@@ -268,11 +268,11 @@ static char *static_cc_cxx(Bd *bd, Prj *p, char *ofile, char *cfile)
 {
     char *cc_use = 0;
     if(strrstr(cfile, ".c") == strlen(cfile) - 2) {
-        cc_use = p->cc ? p->cc : CC_DEF;
+        cc_use = p->cc ? p->cc : static_cc_def;
         if(!bd->use_cxx) bd->cc_cxx = cc_use;
     }
     if(strrstr(cfile, ".cc") == strlen(cfile) - 3 || strrstr(cfile, ".cpp") == strlen(cfile) - 4) {
-        cc_use = p->cxx ? p->cxx : CXX_DEF;
+        cc_use = p->cxx ? p->cxx : static_cxx_def;
         bd->cc_cxx = cc_use;
         bd->use_cxx = true;
     }
@@ -545,7 +545,7 @@ static void link(Bd *bd, Prj *p, char *name, bool avoidlink)
     } else {
         BD_MSG(bd, "\033[92;1m[ %s ]\033[0m is up to date", name); /* bright green color */
     }
-    bd->cc_cxx = CC_DEF;
+    bd->cc_cxx = static_cc_def;
     bd->use_cxx = false;
     strarr_free(&bd->ofiles);
 }
@@ -760,6 +760,8 @@ static void bd_execute(Bd *bd, CmdList cmd)
 
 /* TODO maybe add multithreading */
 /* TODO fix potential bug: not checking if file was deleted */
+/* TODO add assembly support */
+/* TODO maybe avoid compilation of equal files in same project e.g. D("*.c", "*.c")*/
 
 /* start of program */
 int main(int argc, const char **argv)
