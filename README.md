@@ -53,10 +53,11 @@ String with your own linker libraries.
 - **Precede paths** with the `-L=` flag. (make sure to include the equals sign)
 - **precede names** with the `-l=` flag. (make sure to include the equals sign)
 ### C compiler (`Prj::cc`)
-String specifying compiler to use.
+String specifying C compiler to use.
 - If it's `null` it defaults to `gcc`
-- Set it to `g++` to compile C++ programs
-- Or alternatively use any compiler of your choice
+### C++ compiler (`Prj::cxx`)
+String specifying C++ compiler to use.
+- If it's `null` it defaults to `g++`
 
 ## Minimum Recommended Configuration
 ### C
@@ -77,9 +78,8 @@ String specifying compiler to use.
     .type = BUILD_APP,
     .name = "app_name",
     .objd = "obj",
-    .srcf = D("src/*.cpp"),
+    .srcf = D("src/*.cpp"), /* .cpp or .cc both work */
     .cflgs = "-Wall -O2",
-    .cc = "g++",
 }
 ```
 
