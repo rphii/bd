@@ -9,7 +9,7 @@ Simple (to use), one-file **b**uil**d** tool for C/C++ projects.
 
 ## How to use
 1. Clone this repository into a folder
-2. Add that folder to your PATH [how do I do that?](https://gist.github.com/nex3/c395b2f8fd4b02068be37c961301caa7)
+2. Add that folder to your PATH [(what's that?)](https://gist.github.com/nex3/c395b2f8fd4b02068be37c961301caa7)
 3. (Optional) In your project, create a [`bd.conf`](bd.conf) (see [configuration](#how-to-configure))
 4. Run `bd` in your project
 
