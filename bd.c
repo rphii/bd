@@ -110,6 +110,9 @@ SOFTWARE. */
 #define CONFIG  "bd.conf"
 #endif
 
+#define CC_DEF "gcc"
+#define CXX_DEF "g++"
+
 #define D(...)          (StrArr){.s = (char *[]){__VA_ARGS__}, .n = sizeof((char *[]){__VA_ARGS__})/sizeof(*(char *[]){__VA_ARGS__})}
 #define BD_ERR(bd,retval,...)  do { if(!bd->noerr) { printf("\033[91;1m[ERROR:%d]\033[0m ", __LINE__); printf(__VA_ARGS__); printf("\n"); } bd->error = __LINE__; return retval; } while(0)
 #define BD_MSG(bd,...)  if(!bd->quiet) { printf(__VA_ARGS__); printf("\n"); }
@@ -191,10 +194,13 @@ typedef struct Bd {
     bool quiet;
     bool noerr;
     bool done;
+    char *cc_cxx;
+    bool use_cxx;
 } Bd;
 
 typedef struct Prj {
     char *cc;       /* c compiler */
+    char *cxx;      /* cpp compiler */
     char *cflgs;    /* compile flags / options */   
     char *lopts;    /* linker flags / options */
     char *llibs;    /* linker library */
@@ -206,15 +212,15 @@ typedef struct Prj {
 
 /* all function prototypes */
 static char *strprf(char *str, char *format, ...);
-static char *static_cc(BuildList type, char *cc, char *flags, char *ofile, char *cfile);
-static char *static_ld(BuildList type, char *cc, char *options, char *name, char *ofiles, char *libstuff);
+static char *static_cc_cxx(Bd *bd, Prj *p, char *ofile, char *cfile);
+static char *static_ld(Bd *bd, Prj *p, char *name, char *ofiles, char *libstuff);
 static void prj_print(Bd *bd, Prj *p, bool simple);
 static StrArr *strarr_new();
 static void strarr_free(StrArr *arr);
 static bool strarr_set_n(StrArr *arr, int n);
 static bool parse_pipe(Bd *bd, char *cmd, StrArr **result);
 static StrArr *parse_dfile(Bd *bd, char *dfile);
-static int strrstrn(const char *s1, const char *s2);
+static int strrstr(const char *s1, const char *s2);
 static uint64_t modtime(Bd *bd, const char *filename);
 static uint64_t modlibs(Bd *bd, char *llibs);
 static void makedir(const char *dirname);
@@ -258,23 +264,34 @@ static char *strprf(char *str, char *format, ...)
     return result;
 }
 
-static char *static_cc(BuildList type, char *cc, char *flags, char *ofile, char *cfile)
+static char *static_cc_cxx(Bd *bd, Prj *p, char *ofile, char *cfile)
 {
-    switch(type) {
+    char *cc_use = 0;
+    if(strrstr(cfile, ".c") == strlen(cfile) - 2) {
+        cc_use = p->cc ? p->cc : CC_DEF;
+        if(!bd->use_cxx) bd->cc_cxx = cc_use;
+    }
+    if(strrstr(cfile, ".cc") == strlen(cfile) - 3 || strrstr(cfile, ".cpp") == strlen(cfile) - 4) {
+        cc_use = p->cxx ? p->cxx : CXX_DEF;
+        bd->cc_cxx = cc_use;
+        bd->use_cxx = true;
+    }
+    if(!cc_use) BD_ERR(bd, 0, "Unsupported file extension");
+    switch(p->type) {
         case BUILD_APP      : ;
-        case BUILD_EXAMPLES : return strprf(0, "%s -c -MMD -MP %s%s-D%s -o %s %s", cc ? cc : "gcc", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
-        case BUILD_STATIC   : return strprf(0, "%s -c -MMD -MP %s%s-D%s -o %s %s", cc ? cc : "gcc", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
-        case BUILD_SHARED   : return strprf(0, "%s -c -MMD -MP -fPIC -D%s%s%s -o %s %s", cc ? cc : "gcc", flags ? flags : "", flags ? " " : "", OS_DEF, ofile, cfile);
+        case BUILD_EXAMPLES : return strprf(0, "%s -c -MMD -MP %s%s-D%s -o %s %s", cc_use, p->cflgs ? p->cflgs : "", p->cflgs ? " " : "", OS_DEF, ofile, cfile);
+        case BUILD_STATIC   : return strprf(0, "%s -c -MMD -MP %s%s-D%s -o %s %s", cc_use, p->cflgs ? p->cflgs : "", p->cflgs ? " " : "", OS_DEF, ofile, cfile);
+        case BUILD_SHARED   : return strprf(0, "%s -c -MMD -MP -fPIC -D%s%s%s -o %s %s", cc_use, p->cflgs ? p->cflgs : "", p->cflgs ? " " : "", OS_DEF, ofile, cfile);
         default             : return 0;
     }
 }
-static char *static_ld(BuildList type, char *cc, char *options, char *name, char *ofiles, char *libstuff)
+static char *static_ld(Bd *bd, Prj *p, char *name, char *ofiles, char *libstuff)
 {
-    switch(type) {
+    switch(p->type) {
         case BUILD_APP      : ;
-        case BUILD_EXAMPLES : return strprf(0, "%s %s%s-o %s %s %s", cc ? cc : "gcc", options ? options : "", options ? " " : "", name, ofiles, libstuff ? libstuff : "");
-        case BUILD_STATIC   : return strprf(0, "ar rcs %s%s %s", name, static_ext[type], ofiles);
-        case BUILD_SHARED   : return strprf(0, "%s -shared -fPIC %s%s-o %s%s %s %s", cc ? cc : "gcc", options ? options : "", options ? " " : "", name, static_ext[type], ofiles, libstuff ? libstuff : "");
+        case BUILD_EXAMPLES : return strprf(0, "%s %s%s-o %s %s %s", bd->cc_cxx, p->lopts ? p->lopts : "", p->lopts ? " " : "", name, ofiles, libstuff ? libstuff : "");
+        case BUILD_STATIC   : return strprf(0, "ar rcs %s%s %s", name, static_ext[p->type], ofiles);
+        case BUILD_SHARED   : return strprf(0, "%s -shared -fPIC %s%s-o %s%s %s %s", bd->cc_cxx, p->lopts ? p->lopts : "", p->lopts ? " " : "", name, static_ext[p->type], ofiles, libstuff ? libstuff : "");
         default             : return 0;
     }
 }
@@ -397,7 +414,7 @@ static StrArr *parse_dfile(Bd *bd, char *dfile)
     return result;
 }
 
-static int strrstrn(const char *s1, const char *s2)
+static int strrstr(const char *s1, const char *s2)
 {
    const int len_s1 = strlen(s1);
    const int len_s2 = strlen(s2);
@@ -505,7 +522,7 @@ static StrArr *extract_dirs(Bd *bd, char *path, bool skiplast)
 
 static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf)
 {
-    char *cc = static_cc(p->type, p->cc, p->cflgs, objf, srcf);
+    char *cc = static_cc_cxx(bd, p, objf, srcf);
     if(!strarr_set_n(&bd->ofiles, bd->ofiles.n + 1)) BD_ERR(bd,, "Failed to modify StrArr");
     bd->ofiles.s[bd->ofiles.n - 1] = strprf(bd->ofiles.s[bd->ofiles.n - 1], objf);
     BD_MSG(bd, "\033[94;1m[ %s ]\033[0m %s", name, cc); /* bright blue color */
@@ -520,7 +537,7 @@ static void link(Bd *bd, Prj *p, char *name, bool avoidlink)
         /* link */
         char *ofiles = 0;
         for(int i = 0; i < bd->ofiles.n; i++) ofiles = strprf(ofiles, "%s%s", bd->ofiles.s[i], i + 1 < bd->ofiles.n ? " " : "");
-        char *ld = static_ld(p->type, p->cc, p->lopts, name, ofiles, p->llibs);
+        char *ld = static_ld(bd, p, name, ofiles, p->llibs);
         BD_MSG(bd, "\033[93;1m[ %s ]\033[0m %s", name, ld); /* bright yellow color*/
         bd->error = system(ld);
         free(ofiles);
@@ -528,6 +545,8 @@ static void link(Bd *bd, Prj *p, char *name, bool avoidlink)
     } else {
         BD_MSG(bd, "\033[92;1m[ %s ]\033[0m is up to date", name); /* bright green color */
     }
+    bd->cc_cxx = CC_DEF;
+    bd->use_cxx = false;
     strarr_free(&bd->ofiles);
 }
 
@@ -623,8 +642,8 @@ static StrArr *prj_names(Bd *bd, Prj *p, StrArr *srcfs)
         result->s[result->n - 1] = strprf(0, "%s", p->name ? p->name : "a");
     } else {
         for(int i = 0; i < srcfs->n; i++) {
-            int ext = strrstrn(srcfs->s[i], ".");
-            int dir = strrstrn(srcfs->s[i], SLASH_STR);
+            int ext = strrstr(srcfs->s[i], ".");
+            int dir = strrstr(srcfs->s[i], SLASH_STR);
             /* add to result */
             if(!strarr_set_n(result, result->n + 1)) BD_ERR(bd, 0, "Failed to modify StrArr");
             result->s[result->n - 1] = strprf(0, "%s%s%.*s", p->name ? p->name : "", p->name ? SLASH_STR : "", ext - dir - 1, &srcfs->s[i][dir + 1]);
@@ -638,8 +657,8 @@ static StrArr *prj_srcfs_chg_dirext(Bd *bd, StrArr *srcfs, char *new_dir, char *
     if(!result) BD_ERR(bd, 0, "Failed to create StrArr");
     if(!strarr_set_n(result, srcfs->n)) BD_ERR(bd, 0, "Failed to modify StrArr");
     for(int i = 0; i < srcfs->n; i++) {
-        int ext = strrstrn(srcfs->s[i], ".");
-        int slash = strrstrn(srcfs->s[i], SLASH_STR);
+        int ext = strrstr(srcfs->s[i], ".");
+        int slash = strrstr(srcfs->s[i], SLASH_STR);
         result->s[i] = strprf(0, "%s%s%.*s%s", new_dir ? new_dir : "", new_dir ? SLASH_STR : "", ext - slash - 1, &srcfs->s[i][slash + 1], new_ext);
     }
     return result;
@@ -740,6 +759,7 @@ static void bd_execute(Bd *bd, CmdList cmd)
 }
 
 /* TODO maybe add multithreading */
+/* TODO fix potential bug: not checking if file was deleted */
 
 /* start of program */
 int main(int argc, const char **argv)
