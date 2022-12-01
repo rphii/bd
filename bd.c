@@ -405,7 +405,7 @@ static StrArr *parse_dfile(Bd *bd, char *dfile)
     int n = 0;
     while(c != EOF) {
         if(c == '\n') n++;
-        else if(c == ':') {}
+        else if(c == ':' || c == '\r') {}
         else {
             if(!n) n = 1;
             if(!strarr_set_n(result, n)) BD_ERR(bd, 0, "Failed to modify StrArr");
@@ -472,7 +472,6 @@ static uint64_t modlibs(Bd *bd, char *llibs)
         char *search = llibs;
         while(*search) {
             search = strstr(search, find[i]);
-            if(bd->verbose) 
             if(!search) break;
             search += strlen(find[i]) + 1;
             char *space = memchr(search, ' ', llibs + llibs_len - search);
