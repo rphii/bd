@@ -113,6 +113,7 @@ SOFTWARE. */
 #define D(...)          (StrArr){.s = (char *[]){__VA_ARGS__}, .n = sizeof((char *[]){__VA_ARGS__})/sizeof(*(char *[]){__VA_ARGS__})}
 #define BD_ERR(bd,retval,...)  do { if(!bd->noerr) { printf("\033[91;1m[ERROR:%s:%d]\033[0m ", __func__, __LINE__); printf(__VA_ARGS__); printf("\n"); } bd->error = __LINE__; return retval; } while(0)
 #define BD_MSG(bd,...)  if(!bd->quiet) { printf(__VA_ARGS__); printf("\n"); }
+#define BD_VERBOSE(bd,mes,...)  if(bd->verbose) { printf("%d:%s - "mes"\n", __LINE__, __func__, ##__VA_ARGS__); }
 #define SIZE_ARRAY(x)   (sizeof(x)/sizeof(*x))
 #define strarr_free_p(x)    do { strarr_free(x); free(x); x = 0; } while(0)
 #define strarr_free_pa(...) do { for(int i = 0; i < SIZE_ARRAY(((StrArr*[]){__VA_ARGS__})); i++) strarr_free_p(((StrArr*[]){__VA_ARGS__})[i]); } while(0)
@@ -133,6 +134,7 @@ typedef enum {
    CMD_HELP,
    CMD_QUIET,
    CMD_NOERR,
+   CMD_VERBOSE,
    /* commands above */
    CMD__COUNT
 } CmdList;
@@ -145,6 +147,7 @@ static const char *static_cmds[CMD__COUNT] = {
    "-h",
    "-q",
    "-e",
+   "-v",
 };
 static const char *static_cmdsinfo[CMD__COUNT] = {
     "Build the projects",
@@ -155,6 +158,7 @@ static const char *static_cmdsinfo[CMD__COUNT] = {
     "Help output (this here)",
     "Execute quietly",
     "Also makes errors quiet",
+    "Verbose output",
 };
 
 typedef enum {
@@ -191,6 +195,7 @@ typedef struct Bd {
     bool quiet;
     bool noerr;
     bool done;
+    bool verbose;
     char *cc_cxx;
     bool use_cxx;
 } Bd;
@@ -400,7 +405,7 @@ static StrArr *parse_dfile(Bd *bd, char *dfile)
     int n = 0;
     while(c != EOF) {
         if(c == '\n') n++;
-        else if(c == ':') fgetc(fp);
+        else if(c == ':') {}
         else {
             if(!n) n = 1;
             if(!strarr_set_n(result, n)) BD_ERR(bd, 0, "Failed to modify StrArr");
@@ -409,6 +414,7 @@ static StrArr *parse_dfile(Bd *bd, char *dfile)
         c = fgetc(fp);
     }
 
+    BD_VERBOSE(bd, "found %d header files for '%s'", result->n, dfile);
     if(!result->n) strarr_free_p(result);
 
     if(fclose(fp)) BD_ERR(bd, 0, "Could not close dfile");
@@ -462,10 +468,11 @@ static uint64_t modlibs(Bd *bd, char *llibs)
     char *find[] = {"-L", "-l"};
     StrArr *arr_Ll[] = {strarr_new(), strarr_new()};
     for(int i = 0; i < (int)SIZE_ARRAY(arr_Ll); i++) {
-        char *search = llibs;
         if(!arr_Ll[i]) BD_ERR(bd, 0, "Failed to create StrArr");
+        char *search = llibs;
         while(*search) {
             search = strstr(search, find[i]);
+            if(bd->verbose) 
             if(!search) break;
             search += strlen(find[i]) + 1;
             char *space = memchr(search, ' ', llibs + llibs_len - search);
@@ -483,6 +490,8 @@ static uint64_t modlibs(Bd *bd, char *llibs)
             char *libshared = strprf(0, "%s%slib%s%s", arr_Ll[0]->s[i], SLASH_STR, arr_Ll[1]->s[j], static_ext[BUILD_SHARED]);
             uint64_t modstatic = modtime(bd, libstatic);
             uint64_t modshared = modtime(bd, libshared);
+            BD_VERBOSE(bd, "modified time of static library '%s' : %zu", libstatic, (size_t)modstatic);
+            BD_VERBOSE(bd, "modified time of shared library '%s' : %zu", libshared, (size_t)modshared);
             recent = modstatic > recent ? modstatic : recent;
             recent = modshared > recent ? modshared : recent;
         }
@@ -560,14 +569,19 @@ static void build(Bd *bd, Prj *p)
     /* gather all files */
     StrArr *dirn = extract_dirs(bd, p->name, (bool)(p->type != BUILD_EXAMPLES));
     if(!dirn) BD_ERR(bd,, "Failed to get directories from name");
+    BD_VERBOSE(bd, "extracted %d directories from '%s'", dirn->n, p->name);
     StrArr *diro = extract_dirs(bd, p->objd, false);
     if(!diro) BD_ERR(bd,, "Failed to get directories from objd");
+    BD_VERBOSE(bd, "extracted %d directories from '%s'", dirn->n, p->objd);
     StrArr *srcfs = prj_srcfs(bd, p);
     if(!srcfs) BD_ERR(bd,, "No source files");
+    BD_VERBOSE(bd, "extracted %d source files", srcfs->n);
     StrArr *objfs = prj_srcfs_chg_dirext(bd, srcfs, p->objd, ".o");
     if(!objfs) BD_ERR(bd,, "No object files");
+    BD_VERBOSE(bd, "converted %d source files to object files", srcfs->n);
     StrArr *depfs = prj_srcfs_chg_dirext(bd, srcfs, p->objd, ".d");
     if(!depfs) BD_ERR(bd,, "No dependency files");
+    BD_VERBOSE(bd, "converted %d source files to dependency files", srcfs->n);
     StrArr *targets = prj_names(bd, p, srcfs);
     if(!targets) BD_ERR(bd,, "No targets to build");
     bool relink = false;
@@ -579,21 +593,25 @@ static void build(Bd *bd, Prj *p)
         /* maybe check if target even exists */
         char *targetstr = strprf(0, "%s%s", targets->s[k], static_ext[p->type]);
         uint64_t m_target = modtime(bd, targetstr);
+        BD_VERBOSE(bd, "modified time of target '%s' = %zu", targetstr, (size_t)m_target);
         bool newlink = (bool)(m_llibs > m_target) || (bool)(m_target == 0);
         free(targetstr);
         /* set up loop */
         int i0 = (p->type == BUILD_EXAMPLES) ? k : 0;
         int iE = (p->type == BUILD_EXAMPLES) ? k + 1 : srcfs->n;
-        for(int i = i0; i < iE; i++) {
+        for(int i = i0; i < iE && !bd->error; i++) {
             /* go over source file(s) */
             uint64_t m_srcf = modtime(bd, srcfs->s[i]);
+            BD_VERBOSE(bd, "modified time of source '%s' = %zu", srcfs->s[i], (size_t)m_srcf);
             uint64_t m_objf = modtime(bd, objfs->s[i]);
+            BD_VERBOSE(bd, "modified time of object '%s' = %zu", objfs->s[i], (size_t)m_objf);
             if(m_objf >= m_srcf) {
                 /* check dependencies */
                 bool recompiled = false;
                 StrArr *hdrfs = parse_dfile(bd, depfs->s[i]);
-                for(int j = 0; hdrfs && j < hdrfs->n; j++) {
+                for(int j = 0; hdrfs && j < hdrfs->n && !bd->error; j++) {
                     uint64_t m_hdrf = modtime(bd, hdrfs->s[j]);
+                    BD_VERBOSE(bd, "modified time of header '%s' = %zu", hdrfs->s[j], (size_t)m_hdrf);
                     if(m_hdrf > m_objf) {
                         /* header file was updated, recompile */
                         compile(bd, p, targets->s[k], objfs->s[i], srcfs->s[i]);
@@ -754,6 +772,9 @@ static void bd_execute(Bd *bd, CmdList cmd)
         } break;
         case CMD_NOERR: {
             bd->noerr = true;
+        } break;
+        case CMD_VERBOSE: {
+            bd->verbose = true;
         } break;
         default: break;
     }
