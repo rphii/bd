@@ -777,6 +777,7 @@ static void bd_execute(Bd *bd, CmdList cmd)
         } break;
         default: break;
     }
+    if(bd->error) BD_ERR(bd,, "an error occured");
 }
 
 /* TODO maybe add multithreading */
