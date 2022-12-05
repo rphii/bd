@@ -98,13 +98,25 @@ SOFTWARE. */
 #endif
 /* end of os detection */
 
-/* start of globbing pattern */
+/* start of pattern matching */
 #if defined(OS_WIN)
     #define FIND(p) "cmd /V /C \"@echo off && setlocal enabledelayedexpansion && set \"var= %s\" && set \"var=!var:/=\\!\" && for %%I in (!var!) do set \"file=%%~dpnxI\" && set \"file=!file:%%cd%%\\=!\" && @echo !file!\"", p
 #elif defined(OS_CYGWIN) || defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
     #define FIND(p) "find \"$(dirname \"%s\")\" -maxdepth 1 -type f -name \"$(basename \"%s\")\"", p, p
 #endif
-/* end of globbing pattern */
+/* end of pattern matching */
+
+/* start of deletion configuration */
+#if defined(OS_WIN)
+    char delfilestr[] = "del /q";
+    char delfoldstr[] = "rmdir";
+    char noerr[] = "2>nul";
+#elif defined(OS_CYGWIN) || defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
+    char delfilestr[] = "rm";
+    char delfoldstr[] = "rm -d";
+    char noerr[] = "2>/dev/null";
+#endif
+/* end of deletion configuration */
 
 #ifndef CONFIG
 #define CONFIG  "bd.conf"
@@ -233,6 +245,7 @@ static StrArr *extract_dirs(Bd *bd, char *path, bool skiplast);
 static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf);
 static void link(Bd *bd, Prj *p, char *name, bool avoidlink);
 static void build(Bd *bd, Prj *p);
+static void delete_cmd(Bd *bd, char *target, char *to_delete, bool folder);
 static void clean(Bd *bd, Prj *p);
 static void bd_execute(Bd *bd, CmdList cmd);
 static StrArr *prj_names(Bd *bd, Prj *p, StrArr *srcfs);
@@ -644,6 +657,7 @@ static StrArr *prj_srcfs(Bd *bd, Prj *p)
     StrArr *result = 0;
     for(int k = 0; k < p->srcf.n && !bd->error; k++) {
         char *cmd = strprf(0, FIND(p->srcf.s[k]));
+        BD_VERBOSE(bd, "Pass to pipe: %s", cmd);
         bool state = parse_pipe(bd, cmd, &result);
         if(!state) BD_ERR(bd, 0, "Pipe returned nothing");
         free(cmd);
@@ -682,17 +696,18 @@ static StrArr *prj_srcfs_chg_dirext(Bd *bd, StrArr *srcfs, char *new_dir, char *
     return result;
 }
 
+static void delete_cmd(Bd *bd, char *target, char *to_delete, bool folder)
+{
+    char *delstr = strprf(0, "%s %s %s", folder ? delfoldstr : delfilestr, to_delete, noerr);
+    BD_MSG(bd, "\033[95;1m[ %s ]\033[0m %s", target, delstr); /* bright magenta */
+    int result = system(delstr);
+    if(result == -1) BD_ERR(bd,, "System failed deleting %s", folder ? "folder(s)" : "file(s)");
+    free(delstr);
+}
+
 static void clean(Bd *bd, Prj *p)
 {
-#if defined(OS_WIN)
-    char delfilestr[] = "del /q";
-    char delfoldstr[] = "rmdir";
-    char noerr[] = "2>nul";
-#elif defined(OS_CYGWIN) || defined(OS_APPLE) || defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_POSIX)
-    char delfilestr[] = "rm";
-    char delfoldstr[] = "rm -d";
-    char noerr[] = "2>/dev/null";
-#endif
+    if(bd->error) return;
     /* gather all files */
     StrArr *dirn = extract_dirs(bd, p->name, (bool)(p->type != BUILD_EXAMPLES));
     if(!dirn) BD_ERR(bd,, "Failed to get directories from name");
@@ -710,8 +725,8 @@ static void clean(Bd *bd, Prj *p)
     for(int k = 0; k < targets->n; k++) {
         /* maybe check if target even exists */
         char *targetstr = strprf(0, "%s%s", targets->s[k], static_ext[p->type]);
-        char *delfiles = strprf(0, "%s \"%s\" ", delfilestr, targetstr);
-        char *delfolds = strprf(0, "%s ", delfoldstr);
+        char *delfiles = strprf(0, "\"%s\" ", targetstr);
+        char *delfolds = 0;
         free(targetstr);
         /* set up loop */
         int i0 = (p->type == BUILD_EXAMPLES) ? k : 0;
@@ -720,14 +735,8 @@ static void clean(Bd *bd, Prj *p)
         for(int i = dirn->n - 1; i + 1 > 0; i--) delfolds = strprf(delfolds, "\"%s\" ", dirn->s[i]);
         for(int i = diro->n - 1; i + 1 > 0; i--) delfolds = strprf(delfolds, "\"%s\" ", diro->s[i]);
         /* now delete */
-        delfiles = strprf(delfiles, noerr);
-        delfolds = strprf(delfolds, noerr);
-        BD_MSG(bd, "\033[95;1m[ %s ]\033[0m %s", targets->s[k], delfiles); /* bright magenta */
-        int sysret = system(delfiles);
-        if(sysret == -1) BD_ERR(bd,, "System failed deleting files");
-        BD_MSG(bd, "\033[95;1m[ %s ]\033[0m %s", targets->s[k], delfolds); /* bright magenta */
-        sysret = system(delfolds);
-        if(sysret == -1) BD_ERR(bd,, "System failed deleting folders");
+        delete_cmd(bd, targets->s[k], delfiles, false);
+        delete_cmd(bd, targets->s[k], delfolds, true);
         free(delfiles);
         free(delfolds);
     }
