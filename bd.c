@@ -243,6 +243,7 @@ static uint64_t modlibs(Bd *bd, char *llibs);
 static void makedir(const char *dirname);
 static StrArr *extract_dirs(Bd *bd, char *path, bool skiplast);
 static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf);
+static void verify_cc_cxx(Bd *bd, Prj *p, char *filename);
 static void link(Bd *bd, Prj *p, char *name, bool avoidlink);
 static void build(Bd *bd, Prj *p);
 static void delete_cmd(Bd *bd, char *target, char *to_delete, bool folder);
@@ -284,22 +285,11 @@ static char *strprf(char *str, char *format, ...)
 
 static char *static_cc_cxx(Bd *bd, Prj *p, char *ofile, char *cfile)
 {
-    char *cc_use = 0;
-    if(strrstr(cfile, ".c") == strlen(cfile) - 2) {
-        cc_use = p->cc ? p->cc : static_cc_def;
-        if(!bd->use_cxx) bd->cc_cxx = cc_use;
-    }
-    if(strrstr(cfile, ".cc") == strlen(cfile) - 3 || strrstr(cfile, ".cpp") == strlen(cfile) - 4) {
-        cc_use = p->cxx ? p->cxx : static_cxx_def;
-        bd->cc_cxx = cc_use;
-        bd->use_cxx = true;
-    }
-    if(!cc_use) BD_ERR(bd, 0, "Unsupported file extension");
     switch(p->type) {
         case BUILD_APP      : ;
-        case BUILD_EXAMPLES : return strprf(0, "%s -c -MMD -MP %s%s-D%s -o %s %s", cc_use, p->cflgs ? p->cflgs : "", p->cflgs ? " " : "", OS_DEF, ofile, cfile);
-        case BUILD_STATIC   : return strprf(0, "%s -c -MMD -MP %s%s-D%s -o %s %s", cc_use, p->cflgs ? p->cflgs : "", p->cflgs ? " " : "", OS_DEF, ofile, cfile);
-        case BUILD_SHARED   : return strprf(0, "%s -c -MMD -MP -fPIC -D%s%s%s -o %s %s", cc_use, p->cflgs ? p->cflgs : "", p->cflgs ? " " : "", OS_DEF, ofile, cfile);
+        case BUILD_EXAMPLES : return strprf(0, "%s -c -MMD -MP %s%s-D%s -o %s %s", bd->cc_cxx, p->cflgs ? p->cflgs : "", p->cflgs ? " " : "", OS_DEF, ofile, cfile);
+        case BUILD_STATIC   : return strprf(0, "%s -c -MMD -MP %s%s-D%s -o %s %s", bd->cc_cxx, p->cflgs ? p->cflgs : "", p->cflgs ? " " : "", OS_DEF, ofile, cfile);
+        case BUILD_SHARED   : return strprf(0, "%s -c -MMD -MP -fPIC -D%s%s%s -o %s %s", bd->cc_cxx, p->cflgs ? p->cflgs : "", p->cflgs ? " " : "", OS_DEF, ofile, cfile);
         default             : return 0;
     }
 }
@@ -416,13 +406,18 @@ static StrArr *parse_dfile(Bd *bd, char *dfile)
     c = fgetc(fp);
     /* read in the required files */
     int n = 0;
+    bool wasdot = false;
     while(c != EOF) {
-        if(c == '\n') n++;
-        else if(c == ':' || c == '\r') {}
+        if(c == '\n') {
+            wasdot = false;
+            n++;
+        }
+        else if(c == '\r') {}
         else {
+            if(c == '.') wasdot = true;
             if(!n) n = 1;
             if(!strarr_set_n(result, n)) BD_ERR(bd, 0, "Failed to modify StrArr");
-            result->s[result->n - 1] = strprf(result->s[result->n - 1], "%c", c);
+            if(c != ':' || !wasdot) result->s[result->n - 1] = strprf(result->s[result->n - 1], "%c", c);
         }
         c = fgetc(fp);
     }
@@ -552,6 +547,22 @@ static void compile(Bd *bd, Prj *p, char *name, char *objf, char *srcf)
     free(cc);
 }
 
+static void verify_cc_cxx(Bd *bd, Prj *p, char *filename)
+{
+    char *cc_use = 0;
+    size_t filename_len = strlen(filename);
+    if(strrstr(filename, ".c") == filename_len - 2) {
+        cc_use = p->cc ? p->cc : static_cc_def;
+        if(!bd->use_cxx) bd->cc_cxx = cc_use;
+    }
+    if(strrstr(filename, ".cc") == filename_len - 3 || strrstr(filename, ".cpp") == filename_len - 4) {
+        cc_use = p->cxx ? p->cxx : static_cxx_def;
+        bd->cc_cxx = cc_use;
+        bd->use_cxx = true;
+    }
+    if(!cc_use) BD_ERR(bd,, "Unsupported file extension");
+}
+
 static void link(Bd *bd, Prj *p, char *name, bool avoidlink)
 {
     if(bd->error) return;
@@ -596,7 +607,7 @@ static void build(Bd *bd, Prj *p)
     BD_VERBOSE(bd, "converted %d source files to dependency files", srcfs->n);
     StrArr *targets = prj_names(bd, p, srcfs);
     if(!targets) BD_ERR(bd,, "No targets to build");
-    bool relink = false;
+    bool newlink = false;
     /* create folders */
     for(int i = 0; i < dirn->n; i++) makedir(dirn->s[i]);
     for(int i = 0; i < diro->n; i++) makedir(diro->s[i]);
@@ -606,12 +617,15 @@ static void build(Bd *bd, Prj *p)
         char *targetstr = strprf(0, "%s%s", targets->s[k], static_ext[p->type]);
         uint64_t m_target = modtime(bd, targetstr);
         BD_VERBOSE(bd, "modified time of target '%s' = %zu", targetstr, (size_t)m_target);
-        bool newlink = (bool)(m_llibs > m_target) || (bool)(m_target == 0);
+        newlink &= (p->type != BUILD_EXAMPLES);
+        newlink |= (bool)(m_llibs > m_target) || (bool)(m_target == 0);
         free(targetstr);
         /* set up loop */
         int i0 = (p->type == BUILD_EXAMPLES) ? k : 0;
         int iE = (p->type == BUILD_EXAMPLES) ? k + 1 : srcfs->n;
         for(int i = i0; i < iE && !bd->error; i++) {
+            /* determine if it's c or cpp */
+            verify_cc_cxx(bd, p, srcfs->s[i]);
             /* go over source file(s) */
             uint64_t m_srcf = modtime(bd, srcfs->s[i]);
             BD_VERBOSE(bd, "modified time of source '%s' = %zu", srcfs->s[i], (size_t)m_srcf);
@@ -627,26 +641,27 @@ static void build(Bd *bd, Prj *p)
                     if(m_hdrf > m_objf) {
                         /* header file was updated, recompile */
                         compile(bd, p, targets->s[k], objfs->s[i], srcfs->s[i]);
-                        relink |= true;
+                        newlink |= true;
                         recompiled = true;
                         break;
                     } 
                 }
                 if(!recompiled && (newlink || p->type != BUILD_EXAMPLES)) {
                     /* compilation up to date, but it should re-link */
+                    BD_VERBOSE(bd, "add file to link list '%s'", objfs->s[i]);
                     if(!strarr_set_n(&bd->ofiles, bd->ofiles.n + 1)) BD_ERR(bd,, "Failed to modify StrArr");
                     bd->ofiles.s[bd->ofiles.n - 1] = strprf(0, "%s", objfs->s[i]);
                 }
                 strarr_free_p(hdrfs);
             } else {
                 compile(bd, p, targets->s[k], objfs->s[i], srcfs->s[i]);
-                relink |= true;
+                newlink |= true;
             }
             /* only if we're of type EXAMPLES, link already */
             if(p->type == BUILD_EXAMPLES) link(bd, p, targets->s[k], false);
         }
     }
-    if(p->type != BUILD_EXAMPLES) link(bd, p, targets->s[0], !relink);
+    if(p->type != BUILD_EXAMPLES) link(bd, p, targets->s[0], !newlink);
     /* clean up memory used */
     strarr_free_pa(dirn, diro, srcfs, objfs, depfs, targets);
     return;
